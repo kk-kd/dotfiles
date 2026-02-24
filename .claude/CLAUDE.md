@@ -31,6 +31,7 @@
 - **Conventional commits**: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `ci:`.
 - Commit messages are short imperative phrases: `feat: add user auth endpoint`.
 - Always squash-merge PRs.
+- **Never `git push --force`** unless you are absolutely certain it's safe (e.g., you just rebased your own branch with no one else on it). If unsure, ask me first.
 - When working in this dotfiles repo, **always push after making changes**.
 
 ## Editor & Environment
