@@ -5,8 +5,16 @@
       "Bash(git *)",
       "Bash(ruff *)",
       "Bash(pytest *)",
-      "Bash(python *)",
-      "Bash(tree *)"
+      "Bash(tree *)",
+      "Bash(python -m pytest:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(tee:*)",
+      "Bash(yarn test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(source opt/python/bin/activate)"
     ]
   },
   "teammateMode": "tmux",
