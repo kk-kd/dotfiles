@@ -2,10 +2,10 @@
   "model": "opus",
   "permissions": {
     "allow": [
-      "Bash(git *)",
-      "Bash(ruff *)",
-      "Bash(pytest *)",
-      "Bash(tree *)",
+      "Bash(git:*)",
+      "Bash(ruff:*)",
+      "Bash(pytest:*)",
+      "Bash(tree:*)",
       "Bash(python -m pytest:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
@@ -14,7 +14,9 @@
       "Bash(npx tsc:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr diff:*)",
-      "Bash(source opt/python/bin/activate)"
+      "Bash(source opt/python/bin/activate)",
+      "Bash(which:*)",
+      "Bash(ls:*)"
     ]
   },
   "teammateMode": "tmux",
