@@ -40,6 +40,10 @@
 - Heavy terminal usage — prefer CLI solutions when appropriate.
 - When suggesting shell commands, target macOS / zsh.
 
+## Dotfiles
+
+- When adding new config files or directories to this repo, **always add a corresponding symlink to `setup.sh`**.
+
 ## Working Rules
 
 - After editing files, check for errors before considering the task done.
