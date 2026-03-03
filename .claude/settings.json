@@ -3,12 +3,22 @@
   "permissions": {
     "allow": [
       "Bash(git:*)",
+      "Bash(echo:*)",
+      "Bash(pwd:*)",
+      "Bash(whoami:*)",
+      "Bash(date:*)",
+      "Bash(env:*)",
+      "Bash(printenv:*)",
       "Bash(ruff:*)",
       "Bash(pytest:*)",
       "Bash(tree:*)",
       "Bash(python -m pytest:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
       "Bash(tee:*)",
       "Bash(yarn test:*)",
       "Bash(npx tsc:*)",
@@ -16,11 +26,27 @@
       "Bash(gh pr diff:*)",
       "Bash(source opt/python/bin/activate)",
       "Bash(which:*)",
-      "Bash(ls:*)"
+      "Bash(git status && echo \"---\" && git log --oneline main..HEAD)",
+      "Bash(ls:*)",
+      "WebFetch(*)",
+      "WebSearch(*)"
     ]
   },
   "teammateMode": "tmux",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "hooks": {
+    "StatusLine": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/context-bar.sh"
+          }
+        ]
+      }
+    ]
   }
 }
