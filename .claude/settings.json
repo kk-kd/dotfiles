@@ -26,6 +26,7 @@
       "Bash(gh pr diff:*)",
       "Bash(source opt/python/bin/activate)",
       "Bash(which:*)",
+      "Bash(cd:*)",
       "Bash(git status && echo \"---\" && git log --oneline main..HEAD)",
       "Bash(ls:*)",
       "WebFetch(*)",
