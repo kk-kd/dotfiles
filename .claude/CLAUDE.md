@@ -44,6 +44,10 @@
 
 - When adding new config files or directories to this repo, **always add a corresponding symlink to `setup.sh`**.
 
+## Shell Commands
+
+- Commands with `$()` subshells are safe to run without confirmation when both the outer command and inner commands are on the allowlist (e.g., `aws ... $(date ...)`).
+
 ## Working Rules
 
 - After editing files, check for errors before considering the task done.
