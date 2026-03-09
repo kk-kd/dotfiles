@@ -47,6 +47,7 @@
 ## Shell Commands
 
 - **Never use `$()` command substitution inside shell commands.** It triggers a confirmation prompt that can't be bypassed. Instead, run the inner command first to capture its output, then use the literal value in the outer command.
+- **Never chain `cd` with other commands** (e.g., `cd /foo && git status`). It triggers an unskippable confirmation. Instead, pass absolute paths or use `-C`/`--git-dir` flags (e.g., `git -C /path diff`).
 
 ## Working Rules
 
