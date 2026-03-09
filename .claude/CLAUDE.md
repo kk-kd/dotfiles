@@ -46,7 +46,7 @@
 
 ## Shell Commands
 
-- Commands with `$()` subshells are safe to run without confirmation when both the outer command and inner commands are on the allowlist (e.g., `aws ... $(date ...)`).
+- **Never use `$()` command substitution inside shell commands.** It triggers a confirmation prompt that can't be bypassed. Instead, run the inner command first to capture its output, then use the literal value in the outer command.
 
 ## Working Rules
 
