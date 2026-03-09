@@ -44,7 +44,8 @@
       "Bash(jq:*)",
       "Bash(curl:*)",
       "Bash(brew:*)",
-      "Bash(source:*)"
+      "Bash(source:*)",
+      "Bash(aws:*)"
     ]
   },
   "teammateMode": "tmux",
