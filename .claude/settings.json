@@ -2,52 +2,57 @@
   "model": "opus",
   "permissions": {
     "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "WebFetch(*)",
+      "WebSearch(*)",
       "Bash(git:*)",
+      "Bash(gh:*)",
       "Bash(echo:*)",
       "Bash(pwd:*)",
       "Bash(whoami:*)",
       "Bash(date:*)",
       "Bash(env:*)",
       "Bash(printenv:*)",
-      "Bash(ruff:*)",
-      "Bash(pytest:*)",
-      "Bash(tree:*)",
-      "Bash(python -m pytest:*)",
+      "Bash(which:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(head:*)",
       "Bash(tail:*)",
       "Bash(grep:*)",
       "Bash(rg:*)",
-      "Bash(tee:*)",
-      "Bash(yarn test:*)",
-      "Bash(npx tsc:*)",
-      "Bash(gh pr view:*)",
-      "Bash(gh pr diff:*)",
-      "Bash(source opt/python/bin/activate)",
-      "Bash(which:*)",
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(wc:*)",
+      "Bash(diff:*)",
       "Bash(cd:*)",
-      "Bash(git status && echo \"---\" && git log --oneline main..HEAD)",
-      "Bash(ls:*)",
-      "WebFetch(*)",
-      "WebSearch(*)"
+      "Bash(sed:*)",
+      "Bash(tee:*)",
+      "Bash(ruff:*)",
+      "Bash(pytest:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python:*)",
+      "Bash(npx tsc:*)",
+      "Bash(yarn test:*)",
+      "Bash(npm:*)",
+      "Bash(node:*)",
+      "Bash(cargo:*)",
+      "Bash(make:*)",
+      "Bash(jq:*)",
+      "Bash(curl:*)",
+      "Bash(brew:*)",
+      "Bash(source:*)"
     ]
   },
   "teammateMode": "tmux",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
-  "hooks": {
-    "StatusLine": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ~/.claude/scripts/context-bar.sh"
-          }
-        ]
-      }
-    ]
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/scripts/context-bar.sh"
   }
 }
