@@ -25,6 +25,7 @@
 - Meaningful variable names — no single-letter names outside of comprehensions or lambdas.
 - Handle errors explicitly. No bare `except:`.
 - Prefer early returns to reduce nesting.
+- **Don't make formatting-only changes** (reordering imports, rewrapping lines, adjusting whitespace) unless the linter flags them. Unnecessary formatting diffs make code review harder.
 
 ## Git & Workflow
 
@@ -44,10 +45,15 @@
 
 - When adding new config files or directories to this repo, **always add a corresponding symlink to `setup.sh`**.
 
-## Shell Commands
+## Shell Commands (CRITICAL)
 
-- **Never use `$()` command substitution inside shell commands.** It triggers a confirmation prompt that can't be bypassed. Instead, run the inner command first to capture its output, then use the literal value in the outer command.
-- **Never chain `cd` with other commands** (e.g., `cd /foo && git status`). It triggers an unskippable confirmation. Instead, pass absolute paths or use `-C`/`--git-dir` flags (e.g., `git -C /path diff`).
+These rules are **non-negotiable** — violating them causes unskippable confirmation prompts:
+
+1. **NEVER use `$()` or backtick command substitution.** Run the inner command separately first, capture the output, then use the literal value.
+2. **NEVER use `cd` in Bash commands.** Not `cd /foo && cmd`, not `cd /foo; cmd`, not even `cd` alone before another command. Instead:
+   - Use absolute paths: `git -C /path/to/repo diff`
+   - Pass full paths to commands: `grep -E '"test"' /full/path/package.json`
+   - If you must change directory, make it a separate Bash call with just `cd`
 
 ## Working Rules
 
