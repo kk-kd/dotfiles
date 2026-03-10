@@ -49,11 +49,14 @@
 
 These rules are **non-negotiable** — violating them causes unskippable confirmation prompts:
 
-1. **NEVER use `$()` or backtick command substitution.** Run the inner command separately first, capture the output, then use the literal value.
-2. **NEVER use `cd` in Bash commands.** Not `cd /foo && cmd`, not `cd /foo; cmd`, not even `cd` alone before another command. Instead:
+1. **NEVER use `$()`, backticks, or `${}` variable expansion in commands.** They all trigger confirmation prompts. Instead:
+   - Run `printenv VAR_NAME` in a separate Bash call to read env vars
+   - Run `date +%s` etc. in a separate Bash call to get computed values
+   - Then use the literal values in the next command
+2. **NEVER use `cd` or `source` in compound commands.** Not `cd /foo && cmd`, not `source ~/.zshrc && cmd`. Instead:
    - Use absolute paths: `git -C /path/to/repo diff`
    - Pass full paths to commands: `grep -E '"test"' /full/path/package.json`
-   - If you must change directory, make it a separate Bash call with just `cd`
+   - Read env vars with `printenv` instead of sourcing shell configs
 
 ## Working Rules
 
