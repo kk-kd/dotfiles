@@ -34,4 +34,7 @@ symlink "$CLAUDE_DOTFILES/commands" "$CLAUDE_HOME/commands"
 symlink "$CLAUDE_DOTFILES/CLAUDE.md" "$CLAUDE_HOME/CLAUDE.md"
 symlink "$CLAUDE_DOTFILES/scripts" "$CLAUDE_HOME/scripts"
 
+echo "Tmux"
+symlink "$DOTFILES/tmux.conf" "$HOME/.tmux.conf"
+
 echo "Done."
