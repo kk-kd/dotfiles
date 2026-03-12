@@ -47,7 +47,8 @@
       "Bash(curl:*)",
       "Bash(brew:*)",
       "Bash(source:*)",
-      "Bash(aws:*)"
+      "Bash(aws:*)",
+      "Bash(bash ~/.claude/skills/google-docs/scripts/gdocs.sh:*)"
     ]
   },
   "statusLine": {
