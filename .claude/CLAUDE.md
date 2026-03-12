@@ -87,6 +87,11 @@ When a task benefits from parallel work (e.g., multi-module features, research f
 - Review criteria: correctness, adherence to the coding style in this file, test coverage, no leftover debug code, and no unintended side effects.
 - If changes need revision, message the teammate with specific feedback. Do not mark the task complete until the revision lands.
 
+### Worktrees
+
+- Subagents using `isolation: "worktree"` **must clean up their worktree when done**. After the branch is pushed, run `git worktree remove <worktree-path>`.
+- When committing in worktrees, symlink `node_modules` from the main repo so pre-commit hooks pass: `ln -s <main>/client/node_modules <worktree>/client/node_modules`.
+
 ### Workflow
 
 1. Analyze the request and break it into independent, well-scoped tasks.
@@ -94,5 +99,5 @@ When a task benefits from parallel work (e.g., multi-module features, research f
 3. Assign tasks explicitly — do not rely on self-claiming.
 4. For complex tasks, require plan approval and review plans before greenlighting.
 5. As teammates finish, review their work and request fixes if needed.
-6. After all tasks pass review, synthesize results and clean up the team.
+6. After all tasks pass review, synthesize results and clean up worktrees/branches.
 7. Wait for all teammates to finish before proceeding — do not start implementing tasks yourself.
