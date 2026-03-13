@@ -17,7 +17,7 @@ DOC_URL_PATTERN = re.compile(
     r"https?://docs\.google\.com/document/d/([a-zA-Z0-9_-]+)"
 )
 SAFE_SOURCE_DIRS = (Path("/tmp"), Path(tempfile.gettempdir()))
-MAX_STDERR_LEN = 2000
+MAX_STDERR_LEN = 500
 
 HEADING_MAP = {
     "HEADING_1": "# ",
@@ -315,21 +315,24 @@ def build_batch_update(doc: ParsedDocument, insert_at: int = 1) -> dict:
                 para_end = next_end
                 break
 
-        # Heading styles
+        # Paragraph styles — always set explicitly to avoid inheriting
+        # styles from the insertion point
         if segment.heading_level > 0:
             style_name = f"HEADING_{segment.heading_level}"
-            requests.append(
-                {
-                    "updateParagraphStyle": {
-                        "range": {
-                            "startIndex": start,
-                            "endIndex": para_end,
-                        },
-                        "paragraphStyle": {"namedStyleType": style_name},
-                        "fields": "namedStyleType",
-                    }
+        else:
+            style_name = "NORMAL_TEXT"
+        requests.append(
+            {
+                "updateParagraphStyle": {
+                    "range": {
+                        "startIndex": start,
+                        "endIndex": para_end,
+                    },
+                    "paragraphStyle": {"namedStyleType": style_name},
+                    "fields": "namedStyleType",
                 }
-            )
+            }
+        )
 
         # List styles
         if segment.list_type:
