@@ -10,9 +10,10 @@ All Google Docs operations go through the `gdocs.sh` wrapper script. **Never cal
 ## Rules
 
 - You can always **create** and **read** docs.
-- You can only **write** to docs that you created (tracked in `~/.claude/google-docs-created.txt`).
-- To edit a doc you didn't create, **ask the user for permission first**, then run `allow <doc_id>` before writing.
-- Pass markdown content to the `write` command via a temp file or stdin.
+- You can only **write** or **append** to docs that you created (tracked in `~/.claude/google-docs-created.txt`).
+- To edit a doc you didn't create, **ask the user for permission first**, then run `allow <doc_id>` before writing or appending.
+- **Prefer `append`** over `write` when adding content to an existing doc — it preserves comments, suggestions, and formatting.
+- Pass markdown content to `write` or `append` via a temp file or stdin.
 
 ## Commands
 
@@ -40,6 +41,20 @@ bash ~/.claude/skills/google-docs/scripts/gdocs.sh write <doc_id> /path/to/conte
 # From stdin:
 echo "# Hello" | bash ~/.claude/skills/google-docs/scripts/gdocs.sh write <doc_id>
 ```
+
+### Append markdown content to a doc
+```bash
+# Append to the end of the document:
+bash ~/.claude/skills/google-docs/scripts/gdocs.sh append <doc_id> /path/to/content.md
+
+# Append after a specific heading:
+bash ~/.claude/skills/google-docs/scripts/gdocs.sh append <doc_id> /path/to/content.md --after "Challenges"
+
+# From stdin:
+echo "## New Section" | bash ~/.claude/skills/google-docs/scripts/gdocs.sh append <doc_id>
+```
+
+This reads the document first to find the insertion point, then inserts the new content without replacing anything. Comments and suggestions on existing content are preserved.
 
 ### Allow editing a doc you didn't create
 ```bash

@@ -17,7 +17,7 @@ DOC_URL_PATTERN = re.compile(
     r"https?://docs\.google\.com/document/d/([a-zA-Z0-9_-]+)"
 )
 SAFE_SOURCE_DIRS = (Path("/tmp"), Path(tempfile.gettempdir()))
-MAX_STDERR_LEN = 200
+MAX_STDERR_LEN = 2000
 
 HEADING_MAP = {
     "HEADING_1": "# ",
@@ -127,7 +127,10 @@ def run_gws(args: list[str]) -> subprocess.CompletedProcess[str]:
     )
     if result.returncode != 0:
         stderr = result.stderr.strip()[:MAX_STDERR_LEN]
-        print(f"gws error: {stderr}", file=sys.stderr)
+        stdout = result.stdout.strip()[:MAX_STDERR_LEN]
+        print(f"gws error (stderr): {stderr}", file=sys.stderr)
+        if stdout:
+            print(f"gws error (stdout): {stdout}", file=sys.stderr)
         sys.exit(result.returncode)
     return result
 
@@ -266,30 +269,34 @@ def parse_markdown(content: str) -> ParsedDocument:
 # --- Google Docs batch update builder ---
 
 
-def build_batch_update(doc: ParsedDocument) -> dict:
+def build_batch_update(doc: ParsedDocument, insert_at: int = 1) -> dict:
     """Build a Google Docs batchUpdate request from parsed markdown.
 
     Strategy: insert all text first, then apply styles in reverse order
     to avoid index shifting.
+
+    Args:
+        doc: Parsed markdown document.
+        insert_at: 1-based Google Docs body index to insert at.
     """
     # Build the full plain text and track ranges
     full_text = ""
     ranges: list[tuple[int, int, TextSegment]] = []
 
     for segment in doc.segments:
-        start = len(full_text) + 1  # +1 for 1-based Google Docs index
+        start = len(full_text) + insert_at
         full_text += segment.text
-        end = len(full_text) + 1
+        end = len(full_text) + insert_at
         ranges.append((start, end, segment))
 
     requests: list[dict] = []
 
-    # Insert all text at index 1 (start of document body)
+    # Insert all text at the specified index
     if full_text:
         requests.append(
             {
                 "insertText": {
-                    "location": {"index": 1},
+                    "location": {"index": insert_at},
                     "text": full_text,
                 }
             }
@@ -622,6 +629,148 @@ def cmd_write(doc_id: str, markdown_source: str | None = None) -> None:
         Path(tmp_path).unlink(missing_ok=True)
 
 
+def _get_doc_json(doc_id: str) -> dict:
+    """Fetch the raw Google Docs JSON for a document."""
+    params = json.dumps({"documentId": doc_id})
+    result = run_gws(["docs", "documents", "get", "--params", params])
+    try:
+        return json.loads(result.stdout.strip())
+    except json.JSONDecodeError:
+        print("Error: failed to parse document response from gws", file=sys.stderr)
+        sys.exit(1)
+
+
+def _get_doc_end_index(data: dict) -> int:
+    """Get the insertion index at the end of the document body."""
+    body_content = data.get("body", {}).get("content", [])
+    if not body_content:
+        return 1
+    # Last element's endIndex minus 1 (before the trailing newline)
+    return body_content[-1].get("endIndex", 2) - 1
+
+
+def _find_heading_end_index(data: dict, heading_text: str) -> int | None:
+    """Find the end index of the section under a given heading.
+
+    Returns the start index of the next same-or-higher-level heading,
+    or the end of the document if the heading is the last section.
+    """
+    body_content = data.get("body", {}).get("content", [])
+    found_level: int | None = None
+    heading_text_lower = heading_text.strip().lower()
+
+    for element in body_content:
+        para = element.get("paragraph", {})
+        style = para.get("paragraphStyle", {})
+        named_style = style.get("namedStyleType", "")
+
+        # Extract paragraph text
+        para_text = ""
+        for elem in para.get("elements", []):
+            para_text += elem.get("textRun", {}).get("content", "")
+        para_text = para_text.strip().lower()
+
+        # Check if this is a heading
+        if named_style.startswith("HEADING_"):
+            level = int(named_style.split("_")[1])
+
+            if found_level is not None and level <= found_level:
+                # Found the next same-or-higher-level heading — insert before it
+                return element.get("startIndex", 1)
+
+            if para_text == heading_text_lower:
+                found_level = level
+
+    if found_level is not None:
+        # Heading was the last section — append at end of doc
+        return _get_doc_end_index(data)
+
+    return None
+
+
+def cmd_append(
+    doc_id: str,
+    markdown_source: str | None = None,
+    after_heading: str | None = None,
+) -> None:
+    """Append markdown content to a Google Doc without replacing existing content."""
+    if not is_allowed(doc_id):
+        print(
+            f"Error: doc {doc_id} is not in the allowed list.\n"
+            "Use 'allow <doc_id>' after getting user permission.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Read markdown from file or stdin
+    if markdown_source and markdown_source != "-":
+        source_path = validate_source_path(markdown_source)
+        content = source_path.read_text()
+    else:
+        content = sys.stdin.read()
+
+    if not content.strip():
+        print("Error: no content to append", file=sys.stderr)
+        sys.exit(1)
+
+    # Fetch current document to determine insertion point
+    data = _get_doc_json(doc_id)
+
+    if after_heading:
+        insert_at = _find_heading_end_index(data, after_heading)
+        if insert_at is None:
+            print(
+                f"Error: heading '{after_heading}' not found in document",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    else:
+        insert_at = _get_doc_end_index(data)
+
+    # Ensure content starts with a newline for separation
+    if not content.startswith("\n"):
+        content = "\n" + content
+
+    source_label = str(markdown_source) if markdown_source else "stdin"
+    print(
+        f"About to append to doc {doc_id}\n"
+        f"  Source: {source_label}\n"
+        f"  Insert at index: {insert_at}\n"
+        f"  Content length: {len(content)} chars",
+        file=sys.stderr,
+    )
+    if sys.stdin.isatty():
+        answer = input("Proceed? [y/N] ").strip().lower()
+        if answer != "y":
+            print("Aborted.", file=sys.stderr)
+            sys.exit(1)
+
+    doc = parse_markdown(content)
+    batch = build_batch_update(doc, insert_at=insert_at)
+    batch["documentId"] = doc_id
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", delete=False
+    ) as tmp:
+        json.dump(batch, tmp)
+        tmp_path = tmp.name
+
+    try:
+        params = json.dumps({"documentId": doc_id})
+        result = run_gws([
+            "docs",
+            "documents",
+            "batchUpdate",
+            "--params",
+            params,
+            "--json",
+            f"@{tmp_path}",
+        ])
+        print(result.stdout.strip())
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
 def cmd_allow(doc_id: str) -> None:
     """Allow editing a doc by adding its ID to the tracking file."""
     if is_allowed(doc_id):
@@ -639,10 +788,12 @@ USAGE = """\
 Usage: gdocs.sh <command> [args]
 
 Commands:
-  create <title>                   Create a new Google Doc
-  read <doc_id>                    Read a Google Doc
-  write <doc_id> [markdown_file]   Write markdown to a Google Doc (or stdin)
-  allow <doc_id>                   Allow editing a doc you didn't create\
+  create <title>                                  Create a new Google Doc
+  read <doc_id>                                   Read a Google Doc
+  write <doc_id> [markdown_file]                  Write markdown to a Google Doc (or stdin)
+  append <doc_id> [markdown_file]                 Append markdown to a Google Doc (preserves existing content)
+  append <doc_id> [markdown_file] --after "heading"  Append after a specific heading
+  allow <doc_id>                                  Allow editing a doc you didn't create\
 """
 
 
@@ -676,6 +827,33 @@ def main() -> None:
         validate_doc_id(doc_id)
         source = sys.argv[3] if len(sys.argv) > 3 else None
         cmd_write(doc_id, source)
+
+    elif command == "append":
+        if len(sys.argv) < 3:
+            print(
+                "Usage: gdocs.sh append <doc_id_or_url> [markdown_file] [--after 'heading']",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        doc_id = extract_doc_id(sys.argv[2])
+        validate_doc_id(doc_id)
+
+        # Parse optional --after flag and markdown source
+        source = None
+        after_heading = None
+        idx = 3
+        while idx < len(sys.argv):
+            if sys.argv[idx] == "--after" and idx + 1 < len(sys.argv):
+                after_heading = sys.argv[idx + 1]
+                idx += 2
+            elif source is None:
+                source = sys.argv[idx]
+                idx += 1
+            else:
+                print(f"Warning: unknown argument ignored: {sys.argv[idx]}", file=sys.stderr)
+                idx += 1
+
+        cmd_append(doc_id, source, after_heading=after_heading)
 
     elif command == "allow":
         if len(sys.argv) < 3:
