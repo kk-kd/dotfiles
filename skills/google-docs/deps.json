@@ -1,0 +1,9 @@
+{
+  "deps": [
+    {
+      "command": "gws",
+      "manager": "npm",
+      "package": "@googleworkspace/cli"
+    }
+  ]
+}

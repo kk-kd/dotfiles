@@ -2,14 +2,60 @@
 """Google Docs CLI wrapper around gws with permission enforcement."""
 
 import json
+import logging
 import re
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 TRACKING_FILE = Path.home() / ".claude" / "google-docs-created.txt"
+DOC_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+SAFE_SOURCE_DIRS = (Path("/tmp"), Path(tempfile.gettempdir()))
+MAX_STDERR_LEN = 200
+
+log = logging.getLogger("gdocs")
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+
+# --- Validation ---
+
+
+def validate_doc_id(doc_id: str) -> None:
+    """Validate a doc ID matches the expected format."""
+    if not DOC_ID_PATTERN.match(doc_id):
+        print(f"Error: invalid doc ID format: {doc_id!r}", file=sys.stderr)
+        sys.exit(1)
+
+
+def validate_source_path(path: str) -> Path:
+    """Validate that a markdown source path is safe to read.
+
+    Rejects absolute paths outside safe dirs and path traversal.
+    """
+    source = Path(path).resolve()
+
+    if ".." in Path(path).parts:
+        print(f"Error: path traversal not allowed: {path}", file=sys.stderr)
+        sys.exit(1)
+
+    in_safe_dir = any(
+        source == safe_dir or safe_dir in source.parents
+        for safe_dir in SAFE_SOURCE_DIRS
+    )
+    cwd = Path.cwd().resolve()
+    in_cwd = source == cwd or cwd in source.parents
+
+    if not (in_safe_dir or in_cwd):
+        print(
+            f"Error: source path must be under cwd or temp dir: {path}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    return source
 
 
 # --- Tracking ---
@@ -31,6 +77,7 @@ def append_doc_id(doc_id: str) -> None:
     TRACKING_FILE.parent.mkdir(parents=True, exist_ok=True)
     with TRACKING_FILE.open("a") as fh:
         fh.write(f"{doc_id}\n")
+    TRACKING_FILE.chmod(0o600)
 
 
 def is_allowed(doc_id: str) -> bool:
@@ -41,15 +88,26 @@ def is_allowed(doc_id: str) -> bool:
 # --- gws helpers ---
 
 
+def _gws_env() -> dict[str, str]:
+    """Build env for gws, removing service account creds that block OAuth."""
+    import os
+
+    env = os.environ.copy()
+    env.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+    return env
+
+
 def run_gws(args: list[str]) -> subprocess.CompletedProcess[str]:
     """Run a gws command and return the result."""
     result = subprocess.run(
         ["gws", *args],
         capture_output=True,
         text=True,
+        env=_gws_env(),
     )
     if result.returncode != 0:
-        print(f"gws error: {result.stderr.strip()}", file=sys.stderr)
+        stderr = result.stderr.strip()[:MAX_STDERR_LEN]
+        print(f"gws error: {stderr}", file=sys.stderr)
         sys.exit(result.returncode)
     return result
 
@@ -306,7 +364,8 @@ def build_batch_update(doc: ParsedDocument) -> dict:
 
 def cmd_create(title: str) -> None:
     """Create a new Google Doc."""
-    result = run_gws(["docs", "documents", "create", "--title", title])
+    body = json.dumps({"title": title})
+    result = run_gws(["docs", "documents", "create", "--json", body])
     output = result.stdout.strip()
     print(output)
 
@@ -323,7 +382,8 @@ def cmd_create(title: str) -> None:
 
 def cmd_read(doc_id: str) -> None:
     """Read a Google Doc."""
-    result = run_gws(["docs", "documents", "get", doc_id])
+    params = json.dumps({"documentId": doc_id})
+    result = run_gws(["docs", "documents", "get", "--params", params])
     print(result.stdout.strip())
 
 
@@ -339,13 +399,28 @@ def cmd_write(doc_id: str, markdown_source: str | None = None) -> None:
 
     # Read markdown from file or stdin
     if markdown_source and markdown_source != "-":
-        content = Path(markdown_source).read_text()
+        source_path = validate_source_path(markdown_source)
+        content = source_path.read_text()
     else:
         content = sys.stdin.read()
 
     if not content.strip():
         print("Error: no content to write", file=sys.stderr)
         sys.exit(1)
+
+    # Confirmation step
+    source_label = str(markdown_source) if markdown_source else "stdin"
+    print(
+        f"About to write to doc {doc_id}\n"
+        f"  Source: {source_label}\n"
+        f"  Content length: {len(content)} chars",
+        file=sys.stderr,
+    )
+    if sys.stdin.isatty():
+        answer = input("Proceed? [y/N] ").strip().lower()
+        if answer != "y":
+            print("Aborted.", file=sys.stderr)
+            sys.exit(1)
 
     doc = parse_markdown(content)
     batch = build_batch_update(doc)
@@ -358,13 +433,18 @@ def cmd_write(doc_id: str, markdown_source: str | None = None) -> None:
         tmp_path = tmp.name
 
     try:
+        params = json.dumps({"documentId": doc_id})
+        batch["documentId"] = doc_id
+        with open(tmp_path, "w") as f:
+            json.dump(batch, f)
         result = run_gws([
             "docs",
             "documents",
             "batchUpdate",
-            doc_id,
-            "--jsonBody",
-            tmp_path,
+            "--params",
+            params,
+            "--json",
+            f"@{tmp_path}",
         ])
         print(result.stdout.strip())
     finally:
@@ -377,6 +457,8 @@ def cmd_allow(doc_id: str) -> None:
         print(f"Doc {doc_id} is already allowed.")
         return
     append_doc_id(doc_id)
+    timestamp = datetime.now(timezone.utc).isoformat()
+    log.info(f"[{timestamp}] Allowed doc: {doc_id}")
     print(f"Doc {doc_id} added to allowed list.")
 
 
@@ -411,6 +493,7 @@ def main() -> None:
         if len(sys.argv) < 3:
             print("Usage: gdocs.sh read <doc_id>", file=sys.stderr)
             sys.exit(1)
+        validate_doc_id(sys.argv[2])
         cmd_read(sys.argv[2])
 
     elif command == "write":
@@ -418,6 +501,7 @@ def main() -> None:
             print("Usage: gdocs.sh write <doc_id> [markdown_file]", file=sys.stderr)
             sys.exit(1)
         doc_id = sys.argv[2]
+        validate_doc_id(doc_id)
         source = sys.argv[3] if len(sys.argv) > 3 else None
         cmd_write(doc_id, source)
 
@@ -425,6 +509,7 @@ def main() -> None:
         if len(sys.argv) < 3:
             print("Usage: gdocs.sh allow <doc_id>", file=sys.stderr)
             sys.exit(1)
+        validate_doc_id(sys.argv[2])
         cmd_allow(sys.argv[2])
 
     else:
