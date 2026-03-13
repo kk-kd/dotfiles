@@ -424,6 +424,7 @@ def cmd_write(doc_id: str, markdown_source: str | None = None) -> None:
 
     doc = parse_markdown(content)
     batch = build_batch_update(doc)
+    batch["documentId"] = doc_id
 
     # Write batch update JSON to a temp file and pass to gws
     with tempfile.NamedTemporaryFile(
@@ -434,9 +435,6 @@ def cmd_write(doc_id: str, markdown_source: str | None = None) -> None:
 
     try:
         params = json.dumps({"documentId": doc_id})
-        batch["documentId"] = doc_id
-        with open(tmp_path, "w") as f:
-            json.dump(batch, f)
         result = run_gws([
             "docs",
             "documents",

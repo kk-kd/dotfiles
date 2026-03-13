@@ -35,9 +35,6 @@ symlink "$CLAUDE_DOTFILES/CLAUDE.md" "$CLAUDE_HOME/CLAUDE.md"
 symlink "$CLAUDE_DOTFILES/scripts" "$CLAUDE_HOME/scripts"
 symlink "$DOTFILES/skills" "$CLAUDE_HOME/skills"
 
-echo "Skill deps"
-python3 "$DOTFILES/skills/install-deps.py"
-
 echo "Tmux"
 symlink "$DOTFILES/tmux.conf" "$HOME/.tmux.conf"
 

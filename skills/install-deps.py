@@ -2,6 +2,7 @@
 """Install dependencies declared in skills/*/deps.json."""
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,32 @@ def find_deps_files(skills_dir: Path) -> list[Path]:
 def check_command(command: str) -> bool:
     """Check if a command is available on PATH."""
     return shutil.which(command) is not None
+
+
+REQUIRED_KEYS = {"command", "manager", "package"}
+PACKAGE_NAME_PATTERN = re.compile(r"^[@a-zA-Z0-9_./:=-]+$")
+
+
+def validate_dep(dep: dict, skill_name: str) -> str | None:
+    """Validate a dependency entry. Returns error message or None."""
+    if not isinstance(dep, dict):
+        return f"{skill_name}: dep must be an object"
+
+    missing = REQUIRED_KEYS - dep.keys()
+    if missing:
+        return f"{skill_name}: missing keys {missing}"
+
+    for key in REQUIRED_KEYS:
+        if not isinstance(dep.get(key), str) or not dep[key].strip():
+            return f"{skill_name}: {key!r} must be a non-empty string"
+
+    if dep["manager"] not in MANAGER_INSTALL:
+        return f"{skill_name}: unknown manager {dep['manager']!r}"
+
+    if not PACKAGE_NAME_PATTERN.match(dep["package"]):
+        return f"{skill_name}: suspicious package name {dep['package']!r}"
+
+    return None
 
 
 def install_dep(dep: dict, skill_name: str) -> bool:
@@ -66,28 +93,31 @@ def install_dep(dep: dict, skill_name: str) -> bool:
     return True
 
 
-def main() -> int:
-    """Entry point."""
-    skills_dir = Path(__file__).resolve().parent
-    deps_files = find_deps_files(skills_dir)
+def install_skill_deps(deps_file: Path) -> int:
+    """Install deps for a single skill. Returns 0 on success, 1 on failure."""
+    skill_name = deps_file.parent.name
 
-    if not deps_files:
-        print("  no skill deps found")
-        return 0
+    try:
+        data = json.loads(deps_file.read_text())
+    except json.JSONDecodeError as exc:
+        print(f"  error: {skill_name}/deps.json: {exc}", file=sys.stderr)
+        return 1
 
     installed: list[str] = []
     failed: list[str] = []
 
-    for deps_file in deps_files:
-        skill_name = deps_file.parent.name
-        data = json.loads(deps_file.read_text())
+    for dep in data.get("deps", []):
+        error = validate_dep(dep, skill_name)
+        if error:
+            print(f"  error: {error}", file=sys.stderr)
+            failed.append(dep.get("command", "unknown"))
+            continue
 
-        for dep in data.get("deps", []):
-            result = install_dep(dep, skill_name)
-            if result:
-                installed.append(f"{skill_name}/{dep['command']}")
-            elif not check_command(dep["command"]):
-                failed.append(f"{skill_name}/{dep['command']}")
+        result = install_dep(dep, skill_name)
+        if result:
+            installed.append(dep["command"])
+        elif not check_command(dep["command"]):
+            failed.append(dep["command"])
 
     if installed:
         print(f"  installed: {', '.join(installed)}")
@@ -96,6 +126,37 @@ def main() -> int:
         return 1
 
     return 0
+
+
+def main() -> int:
+    """Entry point.
+
+    Usage:
+        install-deps.py              # install deps for all skills
+        install-deps.py <skill>      # install deps for one skill
+    """
+    skills_dir = Path(__file__).resolve().parent
+
+    if len(sys.argv) > 1:
+        skill_name = sys.argv[1]
+        skill_dir = skills_dir / skill_name
+        deps_file = skill_dir / "deps.json"
+        if not deps_file.exists():
+            print(f"  no deps.json for skill {skill_name!r}")
+            return 0
+        return install_skill_deps(deps_file)
+
+    deps_files = find_deps_files(skills_dir)
+    if not deps_files:
+        print("  no skill deps found")
+        return 0
+
+    rc = 0
+    for deps_file in deps_files:
+        if install_skill_deps(deps_file) != 0:
+            rc = 1
+
+    return rc
 
 
 if __name__ == "__main__":
