@@ -13,14 +13,34 @@ from pathlib import Path
 
 TRACKING_FILE = Path.home() / ".claude" / "google-docs-created.txt"
 DOC_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+DOC_URL_PATTERN = re.compile(
+    r"https?://docs\.google\.com/document/d/([a-zA-Z0-9_-]+)"
+)
 SAFE_SOURCE_DIRS = (Path("/tmp"), Path(tempfile.gettempdir()))
 MAX_STDERR_LEN = 200
+
+HEADING_MAP = {
+    "HEADING_1": "# ",
+    "HEADING_2": "## ",
+    "HEADING_3": "### ",
+    "HEADING_4": "#### ",
+    "HEADING_5": "##### ",
+    "HEADING_6": "###### ",
+}
 
 log = logging.getLogger("gdocs")
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 # --- Validation ---
+
+
+def extract_doc_id(doc_id_or_url: str) -> str:
+    """Extract a doc ID from a URL or return as-is if already an ID."""
+    url_match = DOC_URL_PATTERN.search(doc_id_or_url)
+    if url_match:
+        return url_match.group(1)
+    return doc_id_or_url
 
 
 def validate_doc_id(doc_id: str) -> None:
@@ -380,11 +400,164 @@ def cmd_create(title: str) -> None:
         print(f"Warning: could not parse doc ID from response: {exc}", file=sys.stderr)
 
 
+def gdoc_json_to_markdown(data: dict) -> str:
+    """Convert Google Docs API JSON response to readable markdown."""
+    lines: list[str] = []
+    title = data.get("title", "")
+    if title:
+        lines.append(f"# {title}")
+        lines.append("")
+
+    body = data.get("body", {}).get("content", [])
+    list_state: dict[str, int] = {}  # nestingLevel -> counter for numbered lists
+
+    for element in body:
+        if "paragraph" in element:
+            para = element["paragraph"]
+            style = para.get("paragraphStyle", {})
+            named_style = style.get("namedStyleType", "")
+            bullet = para.get("bullet", {})
+
+            # Extract text with inline formatting
+            text_parts: list[str] = []
+            for elem in para.get("elements", []):
+                text_run = elem.get("textRun", {})
+                content = text_run.get("content", "")
+                ts = text_run.get("textStyle", {})
+
+                # Strip trailing newline (we add our own)
+                content = content.rstrip("\n")
+                if not content:
+                    continue
+
+                # Apply inline formatting
+                is_bold = ts.get("bold", False)
+                is_italic = ts.get("italic", False)
+                font = ts.get("weightedFontFamily", {}).get("fontFamily", "")
+                is_code = font in ("Courier New", "Consolas", "Source Code Pro")
+
+                if is_code:
+                    content = f"`{content}`"
+                if is_bold:
+                    content = f"**{content}**"
+                if is_italic:
+                    content = f"*{content}*"
+
+                text_parts.append(content)
+
+            text = "".join(text_parts).strip()
+            if not text:
+                lines.append("")
+                continue
+
+            # Heading prefix
+            heading_prefix = HEADING_MAP.get(named_style, "")
+            if heading_prefix:
+                lines.append(f"{heading_prefix}{text}")
+                lines.append("")
+                continue
+
+            # List items
+            if bullet:
+                nesting = bullet.get("nestingLevel", 0)
+                indent = "  " * nesting
+                list_id = bullet.get("listId", "")
+                # Check if numbered list from the lists metadata
+                is_numbered = False
+                lists = data.get("lists", {})
+                if list_id in lists:
+                    list_props = lists[list_id].get("listProperties", {})
+                    nesting_levels = list_props.get("nestingLevel", [])
+                    if nesting_levels and len(nesting_levels) > nesting:
+                        glyph_type = nesting_levels[nesting].get("glyphType", "")
+                        if glyph_type and glyph_type != "GLYPH_TYPE_UNSPECIFIED":
+                            is_numbered = True
+
+                if is_numbered:
+                    key = f"{list_id}:{nesting}"
+                    list_state[key] = list_state.get(key, 0) + 1
+                    lines.append(f"{indent}{list_state[key]}. {text}")
+                else:
+                    lines.append(f"{indent}- {text}")
+                continue
+
+            # Reset numbered list counters on non-list paragraphs
+            list_state.clear()
+            lines.append(text)
+
+        elif "table" in element:
+            table = element["table"]
+            rows_data: list[list[str]] = []
+            for row in table.get("tableRows", []):
+                cells: list[str] = []
+                for cell in row.get("tableCells", []):
+                    cell_text = ""
+                    for content in cell.get("content", []):
+                        if "paragraph" in content:
+                            for elem in content["paragraph"].get("elements", []):
+                                cell_text += elem.get("textRun", {}).get(
+                                    "content", ""
+                                )
+                    cells.append(cell_text.strip())
+                rows_data.append(cells)
+
+            if rows_data:
+                # Calculate column widths
+                col_count = max(len(r) for r in rows_data)
+                col_widths = [0] * col_count
+                for row in rows_data:
+                    for i, cell in enumerate(row):
+                        col_widths[i] = max(col_widths[i], len(cell))
+
+                # Header row
+                header = rows_data[0]
+                header_line = "| " + " | ".join(
+                    cell.ljust(col_widths[i]) for i, cell in enumerate(header)
+                ) + " |"
+                sep_line = "| " + " | ".join(
+                    "-" * col_widths[i] for i in range(col_count)
+                ) + " |"
+                lines.append(header_line)
+                lines.append(sep_line)
+
+                # Data rows
+                for row in rows_data[1:]:
+                    padded = [
+                        (row[i] if i < len(row) else "").ljust(col_widths[i])
+                        for i in range(col_count)
+                    ]
+                    lines.append("| " + " | ".join(padded) + " |")
+                lines.append("")
+
+    # Clean up excessive blank lines
+    result_lines: list[str] = []
+    prev_blank = False
+    for line in lines:
+        is_blank = line.strip() == ""
+        if is_blank and prev_blank:
+            continue
+        result_lines.append(line)
+        prev_blank = is_blank
+
+    return "\n".join(result_lines).strip() + "\n"
+
+
 def cmd_read(doc_id: str) -> None:
-    """Read a Google Doc."""
+    """Read a Google Doc and output as markdown."""
     params = json.dumps({"documentId": doc_id})
     result = run_gws(["docs", "documents", "get", "--params", params])
-    print(result.stdout.strip())
+    raw = result.stdout.strip()
+
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, KeyError):
+        print("Error: failed to parse document response from gws", file=sys.stderr)
+        sys.exit(1)
+
+    markdown = gdoc_json_to_markdown(data)
+    print("--- BEGIN DOCUMENT CONTENT ---")
+    print(markdown, end="")
+    print("--- END DOCUMENT CONTENT ---")
 
 
 def cmd_write(doc_id: str, markdown_source: str | None = None) -> None:
@@ -489,26 +662,28 @@ def main() -> None:
 
     elif command == "read":
         if len(sys.argv) < 3:
-            print("Usage: gdocs.sh read <doc_id>", file=sys.stderr)
+            print("Usage: gdocs.sh read <doc_id_or_url>", file=sys.stderr)
             sys.exit(1)
-        validate_doc_id(sys.argv[2])
-        cmd_read(sys.argv[2])
+        doc_id = extract_doc_id(sys.argv[2])
+        validate_doc_id(doc_id)
+        cmd_read(doc_id)
 
     elif command == "write":
         if len(sys.argv) < 3:
-            print("Usage: gdocs.sh write <doc_id> [markdown_file]", file=sys.stderr)
+            print("Usage: gdocs.sh write <doc_id_or_url> [markdown_file]", file=sys.stderr)
             sys.exit(1)
-        doc_id = sys.argv[2]
+        doc_id = extract_doc_id(sys.argv[2])
         validate_doc_id(doc_id)
         source = sys.argv[3] if len(sys.argv) > 3 else None
         cmd_write(doc_id, source)
 
     elif command == "allow":
         if len(sys.argv) < 3:
-            print("Usage: gdocs.sh allow <doc_id>", file=sys.stderr)
+            print("Usage: gdocs.sh allow <doc_id_or_url>", file=sys.stderr)
             sys.exit(1)
-        validate_doc_id(sys.argv[2])
-        cmd_allow(sys.argv[2])
+        doc_id = extract_doc_id(sys.argv[2])
+        validate_doc_id(doc_id)
+        cmd_allow(doc_id)
 
     else:
         print(f"Unknown command: {command}", file=sys.stderr)
