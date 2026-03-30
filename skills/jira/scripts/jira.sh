@@ -224,6 +224,61 @@ cmd_get() {
         | jq '{key: .key, summary: .fields.summary, status: .fields.status.name, assignee: .fields.assignee.displayName, priority: .fields.priority.name, type: .fields.issuetype.name}'
 }
 
+cmd_my_sprint() {
+    # Usage: jira.sh my-sprint [--project ENG] [--assignee email] [--max 50]
+    local project="${PROJECT:-}" assignee="${JIRA_EMAIL}" max_results="50"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --project)  project="$2"; shift 2 ;;
+            --assignee) assignee="$2"; shift 2 ;;
+            --max)      max_results="$2"; shift 2 ;;
+            *) die "unknown flag: $1" ;;
+        esac
+    done
+
+    [[ -n "$project" ]] || die "missing --project (or set JIRA_PROJECT)"
+    validate_project_key "$project"
+    validate_integer "$max_results"
+
+    local jql="project = ${project} AND sprint in openSprints()"
+    if [[ -n "$assignee" ]]; then
+        jql="${jql} AND assignee = '${assignee}'"
+    fi
+    jql="${jql} ORDER BY rank ASC"
+
+    local payload
+    payload=$(jq -n --arg jql "$jql" --argjson max "$max_results" '{jql: $jql, maxResults: $max, fields: ["summary", "status", "assignee", "priority", "issuetype", "story_points"]}')
+
+    jira_api POST "/rest/api/3/search/jql" -d "$payload" \
+        | jq '.issues[] | {key: .key, summary: .fields.summary, status: .fields.status.name, assignee: .fields.assignee.displayName, priority: .fields.priority.name, type: .fields.issuetype.name}'
+}
+
+cmd_sprint() {
+    # Usage: jira.sh sprint [--project ENG] [--max 50]
+    local project="${PROJECT:-}" max_results="50"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --project) project="$2"; shift 2 ;;
+            --max)     max_results="$2"; shift 2 ;;
+            *) die "unknown flag: $1" ;;
+        esac
+    done
+
+    [[ -n "$project" ]] || die "missing --project (or set JIRA_PROJECT)"
+    validate_project_key "$project"
+    validate_integer "$max_results"
+
+    local jql="project = ${project} AND sprint in openSprints() ORDER BY rank ASC"
+
+    local payload
+    payload=$(jq -n --arg jql "$jql" --argjson max "$max_results" '{jql: $jql, maxResults: $max, fields: ["summary", "status", "assignee", "priority", "issuetype"]}')
+
+    jira_api POST "/rest/api/3/search/jql" -d "$payload" \
+        | jq '.issues[] | {key: .key, summary: .fields.summary, status: .fields.status.name, assignee: .fields.assignee.displayName, priority: .fields.priority.name, type: .fields.issuetype.name}'
+}
+
 cmd_search() {
     # Usage: jira.sh search --jql "project = ENG AND status = 'In Progress'" [--max 20]
     local jql="" max_results="20"
@@ -242,7 +297,7 @@ cmd_search() {
     local payload
     payload=$(jq -n --arg jql "$jql" --argjson max "$max_results" '{jql: $jql, maxResults: $max, fields: ["summary", "status", "assignee", "priority", "issuetype"]}')
 
-    jira_api POST "/rest/api/3/search" -d "$payload" \
+    jira_api POST "/rest/api/3/search/jql" -d "$payload" \
         | jq '.issues[] | {key: .key, summary: .fields.summary, status: .fields.status.name, assignee: .fields.assignee.displayName, priority: .fields.priority.name, type: .fields.issuetype.name}'
 }
 
@@ -325,6 +380,8 @@ shift || true
 
 case "$cmd" in
     create)         cmd_create "$@" ;;
+    sprint)         cmd_sprint "$@" ;;
+    my-sprint)      cmd_my_sprint "$@" ;;
     list-sprints)   cmd_list_sprints "$@" ;;
     move-to-sprint) cmd_move_to_sprint "$@" ;;
     search-user)    cmd_search_user "$@" ;;
@@ -339,8 +396,10 @@ case "$cmd" in
         echo "  update          Update an existing issue"
         echo "  get             Get issue details"
         echo "  search          Search issues via JQL"
-        echo "  list-sprints    List board sprints"
-        echo "  move-to-sprint  Move issue to a sprint"
+        echo "  sprint          List all issues in the active sprint"
+        echo "  my-sprint       List your issues in the active sprint"
+        echo "  list-sprints    List board sprints (requires agile API access)"
+        echo "  move-to-sprint  Move issue to a sprint (requires agile API access)"
         echo "  search-user     Search for a Jira user"
         echo ""
         echo "Config: ~/.config/jira/.env"
