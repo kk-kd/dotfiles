@@ -65,6 +65,17 @@ These rules are **non-negotiable** — violating them causes unskippable confirm
 - Use `ruff check` and `ruff format` before committing Python.
 - Never commit secrets, tokens, or credentials.
 
+## Subagents
+
+Proactively spin off a subagent for any self-contained piece of work that is **independent of the main task** and can run in parallel. Examples:
+
+- Fixing a skill or config file while working on a feature branch.
+- Writing tests while implementing a feature (once the interface is stable).
+- Updating docs or CLAUDE.md while doing unrelated code changes.
+- Running a security audit or lint fix on a different directory.
+
+**When to subagent vs. do inline**: If the work touches different files/directories and doesn't depend on the main task's output, subagent it. If it's tightly coupled (e.g., needs to see the code you're actively writing), do it inline.
+
 ## Agent Teams
 
 When a task benefits from parallel work (e.g., multi-module features, research from multiple angles, cross-layer changes), create an agent team.
