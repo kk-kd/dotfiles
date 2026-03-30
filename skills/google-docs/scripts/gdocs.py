@@ -920,6 +920,100 @@ def cmd_append(
     print(result.stdout.strip())
 
 
+def _find_section_range(
+    data: dict, heading_text: str
+) -> tuple[int, int] | None:
+    """Find the start and end indices of a section under a given heading.
+
+    Returns (start_index, end_index) covering the heading paragraph and all
+    content up to (but not including) the next same-or-higher-level heading,
+    or end of document.
+    """
+    body_content = data.get("body", {}).get("content", [])
+    heading_text_lower = heading_text.strip().lower()
+    found_level: int | None = None
+    section_start: int | None = None
+
+    for element in body_content:
+        para = element.get("paragraph", {})
+        style = para.get("paragraphStyle", {})
+        named_style = style.get("namedStyleType", "")
+
+        para_text = ""
+        for elem in para.get("elements", []):
+            para_text += elem.get("textRun", {}).get("content", "")
+        para_text = para_text.strip().lower()
+
+        if named_style.startswith("HEADING_"):
+            level = int(named_style.split("_")[1])
+
+            if found_level is not None and level <= found_level:
+                return (section_start, element.get("startIndex", 1))  # type: ignore[return-value]
+
+            if para_text == heading_text_lower:
+                found_level = level
+                section_start = element.get("startIndex", 1)
+
+    if found_level is not None and section_start is not None:
+        return (section_start, _get_doc_end_index(data))
+
+    return None
+
+
+def cmd_delete(doc_id: str, heading: str) -> None:
+    """Delete a section (heading + its content) from a Google Doc."""
+    if not is_allowed(doc_id):
+        print(
+            f"Error: doc {doc_id} is not in the allowed list.\n"
+            "Use 'allow <doc_id>' after getting user permission.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    data = _get_doc_json(doc_id)
+    section_range = _find_section_range(data, heading)
+
+    if section_range is None:
+        print(f"Error: heading '{heading}' not found in document", file=sys.stderr)
+        sys.exit(1)
+
+    start_idx, end_idx = section_range
+    print(
+        f"About to delete section '{heading}' from doc {doc_id}\n"
+        f"  Range: {start_idx}–{end_idx}",
+        file=sys.stderr,
+    )
+    if sys.stdin.isatty():
+        answer = input("Proceed? [y/N] ").strip().lower()
+        if answer != "y":
+            print("Aborted.", file=sys.stderr)
+            sys.exit(1)
+
+    batch = {
+        "requests": [
+            {
+                "deleteContentRange": {
+                    "range": {"startIndex": start_idx, "endIndex": end_idx}
+                }
+            }
+        ]
+    }
+    params = json.dumps({"documentId": doc_id})
+    body = json.dumps(batch)
+    result = run_gws([
+        "docs",
+        "documents",
+        "batchUpdate",
+        "--params",
+        params,
+        "--json",
+        body,
+    ])
+    print(f"Deleted section '{heading}'.")
+    if result.stdout.strip():
+        print(result.stdout.strip())
+
+
 def cmd_allow(doc_id: str) -> None:
     """Allow editing a doc by adding its ID to the tracking file."""
     if is_allowed(doc_id):
@@ -942,6 +1036,7 @@ Commands:
   write <doc_id> [markdown_file]                  Write markdown to a Google Doc (or stdin)
   append <doc_id> [markdown_file]                 Append markdown to a Google Doc (preserves existing content)
   append <doc_id> [markdown_file] --after "heading"  Append after a specific heading
+  delete <doc_id> --section "Heading"               Delete a section by heading
   allow <doc_id>                                  Allow editing a doc you didn't create\
 """
 
@@ -1003,6 +1098,31 @@ def main() -> None:
                 idx += 1
 
         cmd_append(doc_id, source, after_heading=after_heading)
+
+    elif command == "delete":
+        if len(sys.argv) < 4:
+            print(
+                'Usage: gdocs.sh delete <doc_id_or_url> --section "Heading Text"',
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        doc_id = extract_doc_id(sys.argv[2])
+        validate_doc_id(doc_id)
+
+        heading = None
+        idx = 3
+        while idx < len(sys.argv):
+            if sys.argv[idx] == "--section" and idx + 1 < len(sys.argv):
+                heading = sys.argv[idx + 1]
+                idx += 2
+            else:
+                print(f"Warning: unknown argument ignored: {sys.argv[idx]}", file=sys.stderr)
+                idx += 1
+
+        if not heading:
+            print('Error: --section "Heading Text" is required', file=sys.stderr)
+            sys.exit(1)
+        cmd_delete(doc_id, heading)
 
     elif command == "allow":
         if len(sys.argv) < 3:

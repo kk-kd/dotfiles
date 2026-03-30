@@ -10,9 +10,10 @@ All Google Docs operations go through the `gdocs.sh` wrapper script. **Never cal
 ## Rules
 
 - You can always **create** and **read** docs.
-- You can only **write** or **append** to docs that you created (tracked in `~/.claude/google-docs-created.txt`).
-- To edit a doc you didn't create, **ask the user for permission first**, then run `allow <doc_id>` before writing or appending.
+- You can only **write**, **append**, or **delete** sections in docs that you created (tracked in `~/.claude/google-docs-created.txt`).
+- To edit a doc you didn't create, **ask the user for permission first**, then run `allow <doc_id>` before writing, appending, or deleting.
 - **Prefer `append`** over `write` when adding content to an existing doc — it preserves comments, suggestions, and formatting.
+- **To edit a section**: (1) `append` the replacement content, (2) ask the user to review and approve, (3) `delete --section` to remove the old content. Never delete before confirming the new content is correct.
 - Pass markdown content to `write` or `append` via a temp file or stdin.
 
 ## Commands
@@ -55,6 +56,13 @@ echo "## New Section" | bash ~/.claude/skills/google-docs/scripts/gdocs.sh appen
 ```
 
 This reads the document first to find the insertion point, then inserts the new content without replacing anything. Comments and suggestions on existing content are preserved.
+
+### Delete a section by heading
+```bash
+bash ~/.claude/skills/google-docs/scripts/gdocs.sh delete <doc_id> --section "Challenges"
+```
+
+Removes the heading and all content under it, up to the next same-or-higher-level heading. Requires the doc to be in the allowed list.
 
 ### Allow editing a doc you didn't create
 ```bash
