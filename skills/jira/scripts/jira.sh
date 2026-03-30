@@ -81,6 +81,24 @@ validate_integer() {
     [[ "$1" =~ ^[0-9]+$ ]] || die "expected integer, got: $1"
 }
 
+validate_email() {
+    [[ "$1" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+$ ]] || die "invalid email: $1"
+}
+
+urlencode() {
+    printf '%s' "$1" | jq -sRr @uri
+}
+
+# Validate API response is not an error. Usage: validate_response "$response" "context"
+validate_response() {
+    local response="$1" context="${2:-API call}"
+    if echo "$response" | jq -e '.errorMessages // .errors // empty' >/dev/null 2>&1; then
+        local msg
+        msg=$(echo "$response" | jq -r '(.errorMessages // [])[] // (.errors | to_entries[]? | "\(.key): \(.value)") // "unknown error"' 2>/dev/null | head -3)
+        [[ -z "$msg" ]] || die "${context} failed: ${msg}"
+    fi
+}
+
 # ── commands ─────────────────────────────────────────────────────────────────
 
 cmd_create() {
@@ -144,20 +162,20 @@ cmd_create() {
         payload=$(echo "$payload" | jq --argjson p "$points" '.fields.customfield_10016 = $p')
     fi
     if [[ -n "$assignee" ]]; then
+        validate_email "$assignee"
         local account_id
-        account_id=$(jira_api GET "/rest/api/3/user/search?query=${assignee}" | jq -r '.[0].accountId // empty')
-        if [[ -z "$account_id" ]]; then
-            echo "warning: could not find assignee '${assignee}', skipping assignment" >&2
-        else
-            payload=$(echo "$payload" | jq --arg id "$account_id" '.fields.assignee = { accountId: $id }')
-        fi
+        account_id=$(jira_api GET "/rest/api/3/user/search?query=$(urlencode "$assignee")" | jq -r '.[0].accountId // empty')
+        [[ -n "$account_id" ]] || die "could not find assignee '${assignee}'"
+        payload=$(echo "$payload" | jq --arg id "$account_id" '.fields.assignee = { accountId: $id }')
     fi
 
     local response
     response=$(jira_api POST "/rest/api/3/issue" -d "$payload")
+    validate_response "$response" "create issue"
 
     local ticket_key
-    ticket_key=$(echo "$response" | jq -r '.key')
+    ticket_key=$(echo "$response" | jq -r '.key // empty')
+    [[ -n "$ticket_key" ]] || die "create issue failed: no key in response"
 
     echo "Created: ${ticket_key}"
     if [[ -n "$SITE" ]]; then
@@ -179,7 +197,10 @@ cmd_list_sprints() {
     done
 
     validate_integer "$board_id"
-    [[ "$state" =~ ^[a-z,]+$ ]] || die "invalid state: $state"
+    case "$state" in
+        active|future|closed|active,future|active,closed|future,closed|active,future,closed) ;;
+        *) die "invalid state: $state (allowed: active, future, closed)" ;;
+    esac
 
     jira_api GET "/rest/agile/1.0/board/${board_id}/sprint?state=${state}" \
         | jq '.values[] | {id, name, state}'
@@ -212,16 +233,20 @@ cmd_move_to_sprint() {
 cmd_search_user() {
     # Usage: jira.sh search-user <query>
     [[ $# -ge 1 ]] || die "usage: jira.sh search-user <query>"
-    jira_api GET "/rest/api/3/user/search?query=$1" \
-        | jq '.[] | {accountId, displayName, emailAddress}'
+    local response
+    response=$(jira_api GET "/rest/api/3/user/search?query=$(urlencode "$1")")
+    validate_response "$response" "search-user"
+    echo "$response" | jq '.[] | {accountId, displayName, emailAddress}'
 }
 
 cmd_get() {
     # Usage: jira.sh get <issue-key>
     [[ $# -ge 1 ]] || die "usage: jira.sh get <issue-key>"
     validate_issue_key "$1"
-    jira_api GET "/rest/api/3/issue/$1" \
-        | jq '{key: .key, summary: .fields.summary, status: .fields.status.name, assignee: .fields.assignee.displayName, priority: .fields.priority.name, type: .fields.issuetype.name}'
+    local response
+    response=$(jira_api GET "/rest/api/3/issue/$1")
+    validate_response "$response" "get $1"
+    echo "$response" | jq '{key: .key, summary: .fields.summary, status: .fields.status.name, assignee: .fields.assignee.displayName, priority: .fields.priority.name, type: .fields.issuetype.name}'
 }
 
 cmd_my_sprint() {
@@ -240,6 +265,7 @@ cmd_my_sprint() {
     [[ -n "$project" ]] || die "missing --project (or set JIRA_PROJECT)"
     validate_project_key "$project"
     validate_integer "$max_results"
+    [[ -z "$assignee" ]] || validate_email "$assignee"
 
     local jql="project = ${project} AND sprint in openSprints()"
     if [[ -n "$assignee" ]]; then
@@ -250,8 +276,10 @@ cmd_my_sprint() {
     local payload
     payload=$(jq -n --arg jql "$jql" --argjson max "$max_results" '{jql: $jql, maxResults: $max, fields: ["summary", "status", "assignee", "priority", "issuetype", "story_points"]}')
 
-    jira_api POST "/rest/api/3/search/jql" -d "$payload" \
-        | jq '.issues[] | {key: .key, summary: .fields.summary, status: .fields.status.name, assignee: .fields.assignee.displayName, priority: .fields.priority.name, type: .fields.issuetype.name}'
+    local response
+    response=$(jira_api POST "/rest/api/3/search/jql" -d "$payload")
+    validate_response "$response" "my-sprint search"
+    echo "$response" | jq '.issues[] | {key: .key, summary: .fields.summary, status: .fields.status.name, assignee: .fields.assignee.displayName, priority: .fields.priority.name, type: .fields.issuetype.name}'
 }
 
 cmd_sprint() {
@@ -275,8 +303,10 @@ cmd_sprint() {
     local payload
     payload=$(jq -n --arg jql "$jql" --argjson max "$max_results" '{jql: $jql, maxResults: $max, fields: ["summary", "status", "assignee", "priority", "issuetype"]}')
 
-    jira_api POST "/rest/api/3/search/jql" -d "$payload" \
-        | jq '.issues[] | {key: .key, summary: .fields.summary, status: .fields.status.name, assignee: .fields.assignee.displayName, priority: .fields.priority.name, type: .fields.issuetype.name}'
+    local response
+    response=$(jira_api POST "/rest/api/3/search/jql" -d "$payload")
+    validate_response "$response" "sprint search"
+    echo "$response" | jq '.issues[] | {key: .key, summary: .fields.summary, status: .fields.status.name, assignee: .fields.assignee.displayName, priority: .fields.priority.name, type: .fields.issuetype.name}'
 }
 
 cmd_search() {
@@ -297,8 +327,10 @@ cmd_search() {
     local payload
     payload=$(jq -n --arg jql "$jql" --argjson max "$max_results" '{jql: $jql, maxResults: $max, fields: ["summary", "status", "assignee", "priority", "issuetype"]}')
 
-    jira_api POST "/rest/api/3/search/jql" -d "$payload" \
-        | jq '.issues[] | {key: .key, summary: .fields.summary, status: .fields.status.name, assignee: .fields.assignee.displayName, priority: .fields.priority.name, type: .fields.issuetype.name}'
+    local response
+    response=$(jira_api POST "/rest/api/3/search/jql" -d "$payload")
+    validate_response "$response" "search"
+    echo "$response" | jq '.issues[] | {key: .key, summary: .fields.summary, status: .fields.status.name, assignee: .fields.assignee.displayName, priority: .fields.priority.name, type: .fields.issuetype.name}'
 }
 
 cmd_update() {
@@ -344,16 +376,17 @@ cmd_update() {
         payload=$(echo "$payload" | jq --arg t "$issue_type" '.fields.issuetype = { name: $t }')
     fi
     if [[ -n "$assignee" ]]; then
+        validate_email "$assignee"
         local account_id
-        account_id=$(jira_api GET "/rest/api/3/user/search?query=${assignee}" | jq -r '.[0].accountId // empty')
-        if [[ -z "$account_id" ]]; then
-            echo "warning: could not find assignee '${assignee}', skipping" >&2
-        else
-            payload=$(echo "$payload" | jq --arg id "$account_id" '.fields.assignee = { accountId: $id }')
-        fi
+        account_id=$(jira_api GET "/rest/api/3/user/search?query=$(urlencode "$assignee")" | jq -r '.[0].accountId // empty')
+        [[ -n "$account_id" ]] || die "could not find assignee '${assignee}'"
+        payload=$(echo "$payload" | jq --arg id "$account_id" '.fields.assignee = { accountId: $id }')
     fi
 
-    jira_api PUT "/rest/api/3/issue/${issue_key}" -d "$payload"
+    local response
+    response=$(jira_api PUT "/rest/api/3/issue/${issue_key}" -d "$payload")
+    # PUT returns 204 No Content on success (empty body), only validate if non-empty
+    [[ -z "$response" ]] || validate_response "$response" "update $issue_key"
 
     # Transition (status change) requires a separate call
     if [[ -n "$status" ]]; then
