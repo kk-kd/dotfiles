@@ -75,17 +75,29 @@ Supported `--type` values: Task, Bug, Story, Subtask.
 bash ~/.claude/skills/jira/scripts/jira.sh get ENG-123
 ```
 
+### View current sprint (all team issues)
+```bash
+bash ~/.claude/skills/jira/scripts/jira.sh sprint --project ENG
+```
+
+### View my sprint issues
+```bash
+bash ~/.claude/skills/jira/scripts/jira.sh my-sprint --project ENG
+```
+
+Uses the current user's `JIRA_EMAIL` by default. Override with `--assignee "other@example.com"`.
+
 ### Search issues (JQL)
 ```bash
 bash ~/.claude/skills/jira/scripts/jira.sh search --jql "project = ENG AND status = 'In Progress'" --max 10
 ```
 
-### List sprints
+### List sprints (requires agile API access)
 ```bash
 bash ~/.claude/skills/jira/scripts/jira.sh list-sprints --board 1 --state active,future
 ```
 
-### Move issue to a sprint
+### Move issue to a sprint (requires agile API access)
 ```bash
 bash ~/.claude/skills/jira/scripts/jira.sh move-to-sprint --sprint 42 --issue ENG-123
 ```
