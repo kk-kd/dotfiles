@@ -68,4 +68,6 @@ bash ~/.claude/skills/google-docs/scripts/gdocs.sh allow <doc_id>
 - `- item` / `* item` (bullet lists)
 - `1. item` (numbered lists)
 - `` `code` `` (monospace / Courier New)
+- Fenced code blocks (` ``` `) — rendered as Courier New with light gray background
+- Tables (`| col | col |` with `| --- | --- |` separator) — rendered as Google Docs tables with bold header row
 - Regular paragraphs

@@ -146,15 +146,27 @@ class TextSegment:
     bold: bool = False
     italic: bool = False
     code: bool = False
+    code_block: bool = False  # fenced code block (gray bg + monospace)
     heading_level: int = 0  # 0 = not a heading, 1-6 = H1-H6
     list_type: str = ""  # "", "BULLET", "NUMBERED"
+
+
+@dataclass
+class TableBlock:
+    """A markdown table parsed into rows of cells."""
+
+    rows: list[list[str]]  # first row is the header
+
+
+# A document element is either a text segment or a table block.
+Element = TextSegment | TableBlock
 
 
 @dataclass
 class ParsedDocument:
     """A parsed markdown document ready for Google Docs conversion."""
 
-    segments: list[TextSegment] = field(default_factory=list)
+    elements: list[Element] = field(default_factory=list)
 
 
 def parse_inline(text: str) -> list[TextSegment]:
@@ -196,7 +208,7 @@ def parse_inline(text: str) -> list[TextSegment]:
 
 
 def parse_markdown(content: str) -> ParsedDocument:
-    """Parse markdown content into segments."""
+    """Parse markdown content into elements (text segments and table blocks)."""
     doc = ParsedDocument()
     lines = content.split("\n")
     idx = 0
@@ -216,9 +228,25 @@ def parse_markdown(content: str) -> ParsedDocument:
             text = heading_match.group(2).strip()
             for seg in parse_inline(text):
                 seg.heading_level = level
-                doc.segments.append(seg)
-            doc.segments.append(TextSegment(text="\n"))
+                doc.elements.append(seg)
+            doc.elements.append(TextSegment(text="\n"))
             idx += 1
+            continue
+
+        # Tables — lines starting and ending with |
+        if line.strip().startswith("|") and line.strip().endswith("|"):
+            table_rows: list[list[str]] = []
+            while idx < len(lines) and lines[idx].strip().startswith("|"):
+                row_line = lines[idx].strip()
+                # Skip separator lines like | --- | --- |
+                if re.match(r"^\|[\s\-:|]+\|$", row_line):
+                    idx += 1
+                    continue
+                cells = [c.strip() for c in row_line.strip("|").split("|")]
+                table_rows.append(cells)
+                idx += 1
+            if table_rows:
+                doc.elements.append(TableBlock(rows=table_rows))
             continue
 
         # Bullet lists
@@ -227,8 +255,8 @@ def parse_markdown(content: str) -> ParsedDocument:
             text = bullet_match.group(1)
             for seg in parse_inline(text):
                 seg.list_type = "BULLET"
-                doc.segments.append(seg)
-            doc.segments.append(TextSegment(text="\n"))
+                doc.elements.append(seg)
+            doc.elements.append(TextSegment(text="\n"))
             idx += 1
             continue
 
@@ -238,12 +266,12 @@ def parse_markdown(content: str) -> ParsedDocument:
             text = numbered_match.group(1)
             for seg in parse_inline(text):
                 seg.list_type = "NUMBERED"
-                doc.segments.append(seg)
-            doc.segments.append(TextSegment(text="\n"))
+                doc.elements.append(seg)
+            doc.elements.append(TextSegment(text="\n"))
             idx += 1
             continue
 
-        # Code blocks
+        # Fenced code blocks
         if line.strip().startswith("```"):
             idx += 1
             code_lines: list[str] = []
@@ -251,16 +279,18 @@ def parse_markdown(content: str) -> ParsedDocument:
                 code_lines.append(lines[idx])
                 idx += 1
             idx += 1  # skip closing ```
-            code_text = "\n".join(code_lines)
-            if code_text:
-                doc.segments.append(TextSegment(text=code_text, code=True))
-                doc.segments.append(TextSegment(text="\n"))
+            # Each line becomes its own segment so paragraph shading works
+            for code_line in code_lines:
+                doc.elements.append(
+                    TextSegment(text=code_line or " ", code=True, code_block=True)
+                )
+                doc.elements.append(TextSegment(text="\n"))
             continue
 
         # Regular paragraph
         for seg in parse_inline(line):
-            doc.segments.append(seg)
-        doc.segments.append(TextSegment(text="\n"))
+            doc.elements.append(seg)
+        doc.elements.append(TextSegment(text="\n"))
         idx += 1
 
     return doc
@@ -269,21 +299,33 @@ def parse_markdown(content: str) -> ParsedDocument:
 # --- Google Docs batch update builder ---
 
 
-def build_batch_update(doc: ParsedDocument, insert_at: int = 1) -> dict:
-    """Build a Google Docs batchUpdate request from parsed markdown.
+def _group_elements(
+    elements: list[Element],
+) -> list[list[TextSegment] | TableBlock]:
+    """Group consecutive TextSegments into lists, keeping TableBlocks separate."""
+    groups: list[list[TextSegment] | TableBlock] = []
+    current_text: list[TextSegment] = []
+    for elem in elements:
+        if isinstance(elem, TableBlock):
+            if current_text:
+                groups.append(current_text)
+                current_text = []
+            groups.append(elem)
+        else:
+            current_text.append(elem)
+    if current_text:
+        groups.append(current_text)
+    return groups
 
-    Strategy: insert all text first, then apply styles in reverse order
-    to avoid index shifting.
 
-    Args:
-        doc: Parsed markdown document.
-        insert_at: 1-based Google Docs body index to insert at.
-    """
-    # Build the full plain text and track ranges
+def _build_text_requests(
+    segments: list[TextSegment], insert_at: int
+) -> list[dict]:
+    """Build Google Docs API requests for a run of text segments."""
     full_text = ""
     ranges: list[tuple[int, int, TextSegment]] = []
 
-    for segment in doc.segments:
+    for segment in segments:
         start = len(full_text) + insert_at
         full_text += segment.text
         end = len(full_text) + insert_at
@@ -291,7 +333,6 @@ def build_batch_update(doc: ParsedDocument, insert_at: int = 1) -> dict:
 
     requests: list[dict] = []
 
-    # Insert all text at the specified index
     if full_text:
         requests.append(
             {
@@ -309,14 +350,12 @@ def build_batch_update(doc: ParsedDocument, insert_at: int = 1) -> dict:
 
         # Find the newline that ends this segment's paragraph
         para_end = end
-        # Look ahead for the newline
         for next_start, next_end, next_seg in ranges:
             if next_start == end and next_seg.text == "\n":
                 para_end = next_end
                 break
 
-        # Paragraph styles — always set explicitly to avoid inheriting
-        # styles from the insertion point
+        # Paragraph styles
         if segment.heading_level > 0:
             style_name = f"HEADING_{segment.heading_level}"
         else:
@@ -333,6 +372,33 @@ def build_batch_update(doc: ParsedDocument, insert_at: int = 1) -> dict:
                 }
             }
         )
+
+        # Code block paragraph shading (light gray background)
+        if segment.code_block:
+            requests.append(
+                {
+                    "updateParagraphStyle": {
+                        "range": {
+                            "startIndex": start,
+                            "endIndex": para_end,
+                        },
+                        "paragraphStyle": {
+                            "shading": {
+                                "backgroundColor": {
+                                    "color": {
+                                        "rgbColor": {
+                                            "red": 0.95,
+                                            "green": 0.95,
+                                            "blue": 0.95,
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "fields": "shading.backgroundColor",
+                    }
+                }
+            )
 
         # List styles
         if segment.list_type:
@@ -354,25 +420,21 @@ def build_batch_update(doc: ParsedDocument, insert_at: int = 1) -> dict:
 
         # Text styles
         text_style: dict = {}
+        field_names: list[str] = []
         if segment.bold:
             text_style["bold"] = True
+            field_names.append("bold")
         if segment.italic:
             text_style["italic"] = True
-        if segment.code:
+            field_names.append("italic")
+        if segment.code or segment.code_block:
             text_style["weightedFontFamily"] = {
                 "fontFamily": "Courier New",
                 "weight": 400,
             }
+            field_names.append("weightedFontFamily")
 
         if text_style:
-            field_names = []
-            if segment.bold:
-                field_names.append("bold")
-            if segment.italic:
-                field_names.append("italic")
-            if segment.code:
-                field_names.append("weightedFontFamily")
-
             requests.append(
                 {
                     "updateTextStyle": {
@@ -385,6 +447,94 @@ def build_batch_update(doc: ParsedDocument, insert_at: int = 1) -> dict:
                     }
                 }
             )
+
+    return requests
+
+
+def _build_table_requests(table: TableBlock, insert_at: int) -> list[dict]:
+    """Build Google Docs API requests for a table.
+
+    insertTable at index I creates a leading paragraph at I, then the
+    table at I+1.  Each cell has: cell-start, paragraph-start, newline.
+    Text insertion index for cell (r, c):  I + 4 + r * (1 + 2*C) + 2*c
+
+    Cells are filled in reverse order (bottom-right to top-left) so that
+    each insertion doesn't shift indices of not-yet-processed cells.
+    """
+    rows = table.rows
+    num_rows = len(rows)
+    num_cols = max(len(r) for r in rows) if rows else 0
+
+    if num_rows == 0 or num_cols == 0:
+        return []
+
+    requests: list[dict] = []
+
+    # Insert the table structure
+    requests.append(
+        {
+            "insertTable": {
+                "rows": num_rows,
+                "columns": num_cols,
+                "location": {"index": insert_at},
+            }
+        }
+    )
+
+    # Fill cells in reverse order
+    for r in range(num_rows - 1, -1, -1):
+        for c in range(num_cols - 1, -1, -1):
+            cell_text = rows[r][c] if c < len(rows[r]) else ""
+            if not cell_text:
+                continue
+
+            cell_index = insert_at + 4 + r * (1 + 2 * num_cols) + 2 * c
+            requests.append(
+                {
+                    "insertText": {
+                        "location": {"index": cell_index},
+                        "text": cell_text,
+                    }
+                }
+            )
+
+            # Bold the header row
+            if r == 0:
+                requests.append(
+                    {
+                        "updateTextStyle": {
+                            "range": {
+                                "startIndex": cell_index,
+                                "endIndex": cell_index + len(cell_text),
+                            },
+                            "textStyle": {"bold": True},
+                            "fields": "bold",
+                        }
+                    }
+                )
+
+    return requests
+
+
+def build_batch_update(doc: ParsedDocument, insert_at: int = 1) -> dict:
+    """Build a Google Docs batchUpdate request from parsed markdown.
+
+    Splits the document into groups (text runs and tables), then processes
+    them in reverse order so each insertion at insert_at pushes previous
+    content down without index conflicts.
+
+    Args:
+        doc: Parsed markdown document.
+        insert_at: 1-based Google Docs body index to insert at.
+    """
+    groups = _group_elements(doc.elements)
+    requests: list[dict] = []
+
+    for group in reversed(groups):
+        if isinstance(group, TableBlock):
+            requests.extend(_build_table_requests(group, insert_at))
+        else:
+            requests.extend(_build_text_requests(group, insert_at))
 
     return {"requests": requests}
 
@@ -605,31 +755,36 @@ def cmd_write(doc_id: str, markdown_source: str | None = None) -> None:
             print("Aborted.", file=sys.stderr)
             sys.exit(1)
 
+    # Fetch current doc to clear existing content before writing
+    data = _get_doc_json(doc_id)
+    end_index = _get_doc_end_index(data)
+
     doc = parse_markdown(content)
     batch = build_batch_update(doc)
-    batch["documentId"] = doc_id
 
-    # Write batch update JSON to a temp file and pass to gws
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", delete=False
-    ) as tmp:
-        json.dump(batch, tmp)
-        tmp_path = tmp.name
+    # Prepend a delete request to clear existing content
+    if end_index > 1:
+        batch["requests"].insert(
+            0,
+            {
+                "deleteContentRange": {
+                    "range": {"startIndex": 1, "endIndex": end_index}
+                }
+            },
+        )
 
-    try:
-        params = json.dumps({"documentId": doc_id})
-        result = run_gws([
-            "docs",
-            "documents",
-            "batchUpdate",
-            "--params",
-            params,
-            "--json",
-            f"@{tmp_path}",
-        ])
-        print(result.stdout.strip())
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
+    params = json.dumps({"documentId": doc_id})
+    body = json.dumps(batch)
+    result = run_gws([
+        "docs",
+        "documents",
+        "batchUpdate",
+        "--params",
+        params,
+        "--json",
+        body,
+    ])
+    print(result.stdout.strip())
 
 
 def _get_doc_json(doc_id: str) -> dict:
@@ -750,28 +905,19 @@ def cmd_append(
 
     doc = parse_markdown(content)
     batch = build_batch_update(doc, insert_at=insert_at)
-    batch["documentId"] = doc_id
 
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", delete=False
-    ) as tmp:
-        json.dump(batch, tmp)
-        tmp_path = tmp.name
-
-    try:
-        params = json.dumps({"documentId": doc_id})
-        result = run_gws([
-            "docs",
-            "documents",
-            "batchUpdate",
-            "--params",
-            params,
-            "--json",
-            f"@{tmp_path}",
-        ])
-        print(result.stdout.strip())
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
+    params = json.dumps({"documentId": doc_id})
+    body = json.dumps(batch)
+    result = run_gws([
+        "docs",
+        "documents",
+        "batchUpdate",
+        "--params",
+        params,
+        "--json",
+        body,
+    ])
+    print(result.stdout.strip())
 
 
 def cmd_allow(doc_id: str) -> None:
