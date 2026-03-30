@@ -92,6 +92,14 @@ When a task benefits from parallel work (e.g., multi-module features, research f
 - Subagents using `isolation: "worktree"` **must clean up their worktree when done**. After the branch is pushed, run `git worktree remove <worktree-path>`.
 - When committing in worktrees, symlink `node_modules` from the main repo so pre-commit hooks pass: `ln -s <main>/client/node_modules <worktree>/client/node_modules`.
 
+### Tracking & interjections
+
+- **User interjections are additive, not replacements.** When the user reviews progress mid-task and gives new feedback or prompts, all prior instructions and tasks still apply unless the user explicitly corrects or cancels them.
+- At the start of any non-trivial task, use `TaskCreate` to track every commitment from the conversation.
+- When the user interjects with new guidance, add it as a new task — do not drop or deprioritize existing tasks.
+- Before marking work as done, review the full task list to ensure **all** prior instructions were addressed, not just the most recent ones.
+- If unsure whether new guidance replaces or supplements an earlier instruction, ask.
+
 ### Workflow
 
 1. Analyze the request and break it into independent, well-scoped tasks.
