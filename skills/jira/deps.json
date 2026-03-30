@@ -1,0 +1,9 @@
+{
+  "deps": [
+    {
+      "command": "jq",
+      "manager": "brew",
+      "package": "jq"
+    }
+  ]
+}

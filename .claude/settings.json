@@ -48,7 +48,8 @@
       "Bash(brew:*)",
       "Bash(source:*)",
       "Bash(aws:*)",
-      "Bash(bash ~/.claude/skills/google-docs/scripts/gdocs.sh:*)"
+      "Bash(bash ~/.claude/skills/google-docs/scripts/gdocs.sh:*)",
+      "Bash(bash ~/.claude/skills/jira/scripts/jira.sh:*)"
     ]
   },
   "statusLine": {
@@ -56,5 +57,5 @@
     "command": "~/.claude/scripts/context-bar.sh"
   },
   "teammateMode": "tmux",
-  "model": "opus"
+  "model": "opus[1m]"
 }
