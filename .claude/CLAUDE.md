@@ -65,6 +65,14 @@ These rules are **non-negotiable** — violating them causes unskippable confirm
 - Use `ruff check` and `ruff format` before committing Python.
 - Never commit secrets, tokens, or credentials.
 
+## Task Tracking
+
+- For non-trivial tasks, write a `.todo.md` file in the working directory to track progress.
+- Use checkbox format: `- [ ] task` / `- [x] done`.
+- Update it as you go — check off items when complete, add new ones as they come up.
+- Delete the file when all tasks are done.
+- This applies to both the lead agent and subagents — each should maintain awareness of the todo list.
+
 ## Subagents
 
 Proactively spin off a subagent for any self-contained piece of work that is **independent of the main task** and can run in parallel. Examples:
