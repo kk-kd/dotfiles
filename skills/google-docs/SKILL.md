@@ -69,6 +69,17 @@ Removes the heading and all content under it, up to the next same-or-higher-leve
 bash ~/.claude/skills/google-docs/scripts/gdocs.sh allow <doc_id>
 ```
 
+## Prerequisites
+
+This skill requires the [Google Workspace CLI (`gws`)](https://github.com/nicholasgasior/gws). Install and authenticate before first use:
+
+1. **Install**: `npm install -g @googleworkspace/cli`
+   (This is handled automatically by `install-deps.py` on first use, but you can install manually.)
+2. **Authenticate**: Run `gws auth login` — this opens a browser-based OAuth flow. Sign in with the Google account that owns/accesses the target docs.
+3. **Verify**: Run `gws docs documents list` to confirm authentication works.
+
+> **Note**: If you have `GOOGLE_APPLICATION_CREDENTIALS` set (e.g., for a service account), the skill strips it automatically — `gws` must use OAuth, not service account credentials.
+
 ## Supported Markdown
 
 - `# H1` through `###### H6` (heading styles)
