@@ -70,7 +70,7 @@ These rules are **non-negotiable** — violating them causes unskippable confirm
 Proactively spin off a subagent for any self-contained piece of work that is **independent of the main task** and can run in parallel. Examples:
 
 - Fixing a skill or config file while working on a feature branch.
-- Committing or creating a PR on a different branch while still working on the current one.
+- Committing or creating a PR while still working on the current task.
 - Writing tests while implementing a feature (once the interface is stable).
 - Updating docs or CLAUDE.md while doing unrelated code changes.
 - Running a security audit or lint fix on a different directory.
