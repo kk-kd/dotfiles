@@ -85,6 +85,8 @@ Proactively spin off a subagent for any self-contained piece of work that is **i
 
 **When to subagent vs. do inline**: If the work touches different files/directories and doesn't depend on the main task's output, subagent it. If it's tightly coupled (e.g., needs to see the code you're actively writing), do it inline.
 
+**Always run subagents in the background** (`run_in_background: true`) so the main conversation stays responsive. Only use foreground agents when you absolutely need their result before proceeding.
+
 ## Agent Teams
 
 When a task benefits from parallel work (e.g., multi-module features, research from multiple angles, cross-layer changes), create an agent team.
