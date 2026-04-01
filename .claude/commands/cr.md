@@ -1,17 +1,28 @@
-Review the code I've selected or the current file.
+Review a PR and post findings as **pending inline comments** on GitHub.
 
-If I provide a branch name, run this git workflow before reviewing:
-
-1. `git fetch --all --prune`
-2. `git checkout main && git pull --ff-only origin main`
-3. `git checkout <branch> && git pull --ff-only origin <branch>`
-4. `git diff main...<branch>` (optionally `git log --oneline --left-right main...<branch>`)
-
-Do not compare until both `main` and `<branch>` have been updated.
+ARGUMENTS: branch name OR PR number
 
 ---
 
-## What to check
+## Step 1: Resolve the PR
+
+- If the argument looks like a number, treat it as a PR number.
+- If it looks like a branch name, find the PR: `gh pr view <branch> --json number,headRefName,baseRefName`
+- If no argument is given, use the current branch: `gh pr view --json number,headRefName,baseRefName`
+- Extract the PR number and base branch from the result.
+
+## Step 2: Get the diff
+
+1. `git fetch --all --prune`
+2. `git checkout <base> && git pull --ff-only origin <base>`
+3. `git checkout <head> && git pull --ff-only origin <head>`
+4. `git diff <base>...<head>`
+
+Do not compare until both branches have been updated.
+
+## Step 3: Analyze the diff
+
+Check for:
 
 1. **Bugs & logic errors** — anything that would break at runtime or produce wrong results.
 2. **Security issues** — injection, hardcoded secrets, unsafe deserialization, etc.
@@ -47,32 +58,66 @@ Do not compare until both `main` and `<branch>` have been updated.
 - Will a new team member understand this in 6 months?
 - Are there magic strings/numbers that should be constants?
 
----
+## Step 4: Post pending review comments
 
-## Output format
+For each finding, determine the **exact file path** and **diff line number** to comment on.
 
-```markdown
-## Code Review: [Brief Summary]
+### Computing the correct line position
 
-### ✅ What's Working Well
-- [Specific positive observations]
+CRITICAL: The `line` field in the GitHub review comment API refers to the **line number in the file** (after the change), NOT the position in the diff hunk. Use the line number from the new version of the file as shown in the diff `+` side or unchanged context lines.
 
-### 🔧 Suggested Improvements
+For lines that exist only in the old version (deleted lines), use `side: "LEFT"` with the old file line number.
 
-#### Code Style
-- [Specific issues with line references]
+### Posting the review
 
-#### Structure/Organization
-- [Architectural concerns]
+Use a SINGLE `gh api` call to create a pending review with all comments at once:
 
-#### Function Placement
-- [Separation of concerns issues]
-
-### 📋 Action Items
-1. [ ] [Specific, actionable change]
-2. [ ] [Another specific change]
+```
+gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews \
+  --method POST \
+  -f event="PENDING" \
+  -f 'comments=[...]'
 ```
 
-For each issue: state the problem, show a diff fix, rate severity: 🔴 must-fix · 🟡 should-fix · 🟢 nit.
+Build the JSON body with all comments in one array. Each comment object:
+```json
+{
+  "path": "relative/file/path.py",
+  "line": <line_number_in_new_file>,
+  "body": "**severity** comment body with explanation and suggested fix"
+}
+```
 
-If the code looks good, say so briefly.
+Severity prefixes for comment bodies:
+- `**must-fix:**` for bugs, security issues, correctness problems
+- `**should-fix:**` for performance, design, or maintainability issues
+- `**nit:**` for style, naming, or minor improvements
+
+Include a diff suggestion block in the comment body when a concrete fix is possible:
+
+````
+**should-fix:** Description of the issue.
+
+```suggestion
+replacement code here
+```
+````
+
+### Important rules
+
+- Do NOT use `--input` with a temp file. Build the JSON inline.
+- The `path` must be relative to the repo root (e.g. `py/plenish/store.py`, not `/full/path/...`).
+- Only comment on lines that are part of the diff (added or modified lines). Do not comment on unchanged code.
+- If the code looks good overall, still create the review but add a single top-level comment: "LGTM - code looks good."
+- Skip nits if there are fewer than 2 real issues — don't leave noise.
+- After posting, print a summary: number of comments posted, severity breakdown, and a link to the PR.
+- If posting fails, fall back to printing the review in conversation format.
+
+## Output
+
+After posting, print a short summary to the conversation:
+
+```
+Posted N pending review comments on PR #X (Y must-fix, Z should-fix, W nit).
+Review: <pr_url>
+```
