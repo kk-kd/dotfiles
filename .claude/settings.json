@@ -52,10 +52,10 @@
       "Bash(bash ~/.claude/skills/jira/scripts/jira.sh:*)"
     ]
   },
+  "model": "opus",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/scripts/context-bar.sh"
   },
-  "teammateMode": "tmux",
-  "model": "opus[1m]"
+  "teammateMode": "tmux"
 }

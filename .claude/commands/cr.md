@@ -58,7 +58,24 @@ Check for:
 - Will a new team member understand this in 6 months?
 - Are there magic strings/numbers that should be constants?
 
-## Step 4: Post pending review comments
+## Step 4: Show comments for approval
+
+Before posting anything, print all proposed comments in the conversation for the user to review. Format each comment as:
+
+```
+[severity] file/path.py:L123
+comment body
+```
+
+Then ask: "Post these comments? (yes/edit/cancel)"
+
+- **yes**: proceed to post
+- **edit**: user will tell you which comments to drop or modify, then re-confirm
+- **cancel**: abort without posting
+
+Do NOT post to GitHub until the user explicitly approves.
+
+## Step 5: Post pending review comments
 
 For each finding, determine the **exact file path** and **diff line number** to comment on.
 
