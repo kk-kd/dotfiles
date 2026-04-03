@@ -35,6 +35,10 @@ symlink "$CLAUDE_DOTFILES/CLAUDE.md" "$CLAUDE_HOME/CLAUDE.md"
 symlink "$CLAUDE_DOTFILES/scripts" "$CLAUDE_HOME/scripts"
 symlink "$DOTFILES/skills" "$CLAUDE_HOME/skills"
 
+echo "LaunchAgents"
+mkdir -p "$HOME/Library/LaunchAgents"
+symlink "$DOTFILES/launchagents/com.cadyzhou.review-queue.plist" "$HOME/Library/LaunchAgents/com.cadyzhou.review-queue.plist"
+
 echo "Tmux"
 symlink "$DOTFILES/tmux.conf" "$HOME/.tmux.conf"
 

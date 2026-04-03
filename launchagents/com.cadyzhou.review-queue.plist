@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.cadyzhou.review-queue</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/claude</string>
+        <string>-p</string>
+        <string>Check how many open, non-draft PRs in cady-plenful/dev-app-runner and cady-plenful/action-test have ml-engineer or automation-reviewer in requested_teams. Use gh api to check. Then send a macOS notification with the count using osascript. Just the notification, no other output needed. If zero, notify "No PRs to review".</string>
+        <string>--allowedTools</string>
+        <string>Bash</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key>
+            <integer>9</integer>
+            <key>Minute</key>
+            <integer>3</integer>
+            <key>Weekday</key>
+            <integer>1</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>9</integer>
+            <key>Minute</key>
+            <integer>3</integer>
+            <key>Weekday</key>
+            <integer>2</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>9</integer>
+            <key>Minute</key>
+            <integer>3</integer>
+            <key>Weekday</key>
+            <integer>3</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>9</integer>
+            <key>Minute</key>
+            <integer>3</integer>
+            <key>Weekday</key>
+            <integer>4</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>9</integer>
+            <key>Minute</key>
+            <integer>3</integer>
+            <key>Weekday</key>
+            <integer>5</integer>
+        </dict>
+    </array>
+    <key>StandardOutPath</key>
+    <string>/tmp/review-queue.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/review-queue.err</string>
+</dict>
+</plist>
