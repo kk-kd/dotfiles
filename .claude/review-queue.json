@@ -1,0 +1,10 @@
+{
+  "repos": [
+    {
+      "repo": "plenful/plenful",
+      "teams": ["ml-eng", "automations-review"],
+      "reviewers": ["cady-plenful"],
+      "exclude_drafts": true
+    }
+  ]
+}

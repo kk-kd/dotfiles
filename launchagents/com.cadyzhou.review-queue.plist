@@ -8,7 +8,7 @@
     <array>
         <string>/opt/homebrew/bin/claude</string>
         <string>-p</string>
-        <string>Check how many open, non-draft PRs in cady-plenful/dev-app-runner and cady-plenful/action-test have ml-engineer or automation-reviewer in requested_teams. Use gh api to check. Then send a macOS notification with the count using osascript. Just the notification, no other output needed. If zero, notify "No PRs to review".</string>
+        <string>Check how many open, non-draft PRs in plenful/plenful have ml-eng or automations-review in requested_teams, OR cady-plenful in requested_reviewers. Use gh api to check. Then send a macOS notification with the count using osascript. Just the notification, no other output needed. If zero, notify "No PRs to review".</string>
         <string>--allowedTools</string>
         <string>Bash</string>
     </array>
