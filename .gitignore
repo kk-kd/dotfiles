@@ -1,2 +1,3 @@
 **_pycache__/
 .mypy_cache/
+.claude/scheduled_tasks.lock
