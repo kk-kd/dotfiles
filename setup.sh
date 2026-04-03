@@ -33,6 +33,7 @@ symlink "$CLAUDE_DOTFILES/settings.json" "$CLAUDE_HOME/settings.json"
 symlink "$CLAUDE_DOTFILES/commands" "$CLAUDE_HOME/commands"
 symlink "$CLAUDE_DOTFILES/CLAUDE.md" "$CLAUDE_HOME/CLAUDE.md"
 symlink "$CLAUDE_DOTFILES/scripts" "$CLAUDE_HOME/scripts"
+symlink "$CLAUDE_DOTFILES/review-queue.json" "$CLAUDE_HOME/review-queue.json"
 symlink "$DOTFILES/skills" "$CLAUDE_HOME/skills"
 
 echo "LaunchAgents"
