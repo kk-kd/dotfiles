@@ -63,7 +63,7 @@ Check for:
 Before posting anything, print all proposed comments in the conversation for the user to review. Format each comment as:
 
 ```
-[severity] file/path.py:L123
+file/path.py:L123
 comment body
 ```
 
@@ -87,33 +87,39 @@ For lines that exist only in the old version (deleted lines), use `side: "LEFT"`
 
 ### Posting the review
 
-Use a SINGLE `gh api` call to create a pending review with all comments at once:
+Use a SINGLE `gh api` call to create a review with all comments at once. Write the JSON to a temp file and pass it via `--input`:
 
 ```
-gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews \
-  --method POST \
-  -f event="PENDING" \
-  -f 'comments=[...]'
+# Write JSON to temp file
+python -c "import json, sys; json.dump({...}, open('/tmp/cr_review.json', 'w'))"
+
+# Post review
+gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews --method POST --input /tmp/cr_review.json
+
+# Clean up
+rm /tmp/cr_review.json
 ```
 
-Build the JSON body with all comments in one array. Each comment object:
+The JSON body structure:
 ```json
 {
-  "path": "relative/file/path.py",
-  "line": <line_number_in_new_file>,
-  "body": "**severity** comment body with explanation and suggested fix"
+  "event": "COMMENT",
+  "comments": [
+    {
+      "path": "relative/file/path.py",
+      "line": 123,
+      "body": "Comment body with explanation and suggested fix"
+    }
+  ]
 }
 ```
 
-Severity prefixes for comment bodies:
-- `**must-fix:**` for bugs, security issues, correctness problems
-- `**should-fix:**` for performance, design, or maintainability issues
-- `**nit:**` for style, naming, or minor improvements
+Do NOT use severity prefixes (must-fix, should-fix, nit) in comment bodies. Just write the comment directly.
 
 Include a diff suggestion block in the comment body when a concrete fix is possible:
 
 ````
-**should-fix:** Description of the issue.
+Description of the issue.
 
 ```suggestion
 replacement code here
@@ -122,12 +128,12 @@ replacement code here
 
 ### Important rules
 
-- Do NOT use `--input` with a temp file. Build the JSON inline.
+- Always use `python -c` to write JSON to `/tmp/cr_review.json`, then pass via `--input /tmp/cr_review.json`. Do NOT use heredocs or inline JSON — they cause permission prompt issues.
 - The `path` must be relative to the repo root (e.g. `py/plenish/store.py`, not `/full/path/...`).
 - Only comment on lines that are part of the diff (added or modified lines). Do not comment on unchanged code.
-- If the code looks good overall, still create the review but add a single top-level comment: "LGTM - code looks good."
+- If the code looks good overall, still create the review but add a single top-level comment: "LGTM" (no elaboration).
 - Skip nits if there are fewer than 2 real issues — don't leave noise.
-- After posting, print a summary: number of comments posted, severity breakdown, and a link to the PR.
+- After posting, print a summary: number of comments posted and a link to the PR.
 - If posting fails, fall back to printing the review in conversation format.
 
 ## Output
@@ -135,6 +141,6 @@ replacement code here
 After posting, print a short summary to the conversation:
 
 ```
-Posted N pending review comments on PR #X (Y must-fix, Z should-fix, W nit).
+Posted N comments on PR #X.
 Review: <pr_url>
 ```
