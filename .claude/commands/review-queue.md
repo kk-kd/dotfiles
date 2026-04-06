@@ -31,7 +31,10 @@ Projects can override by placing their own `.claude/review-queue.json` with the 
    gh api "repos/{owner}/{repo}/pulls?state=open&per_page=100" --jq '[.[] | select(.draft == false)]'
    ```
 
-3. Filter PRs where any configured team appears in `.requested_teams[].slug`.
+3. Filter PRs based on the repo config:
+   - If `teams` is set: match PRs where any configured team appears in `.requested_teams[].slug`.
+   - If `title_contains` is set: match PRs where the title contains the given string (case-insensitive).
+   - Both filters can coexist on different repo entries (even for the same repo). Deduplicate PRs by number if a PR matches multiple entries for the same repo.
 
 4. For each matching PR, fetch reviews to detect re-review:
    ```
@@ -39,7 +42,7 @@ Projects can override by placing their own `.claude/review-queue.json` with the 
    ```
    If I have a previous review, mark as **⚠️ RE-REVIEW**.
 
-5. Present results grouped by repo, oldest first:
+5. Present results grouped by repo (and label if set), oldest first:
 
    ```
    ## PRs to Review (N)
@@ -47,13 +50,16 @@ Projects can override by placing their own `.claude/review-queue.json` with the 
    ### org/repo
    - [#123 "PR title"](url) (author, 3d ago) — team-slug requested
    - [#456 "PR title"](url) (author, 1d ago) — ⚠️ RE-REVIEW — team-slug requested
+
+   ### org/repo (PDM)
+   - [#789 "PDM: some feature"](url) (author, 2d ago) — title match
    ```
 
 6. If no PRs match: **No PRs to review right now.**
 
 7. On macOS, send a notification:
    ```
-   osascript -e 'display notification "N PRs waiting for review" with title "Review Queue"'
+   terminal-notifier -title "Review Queue" -message "N PRs waiting for review"
    ```
 
 ## Important

@@ -5,6 +5,12 @@
       "teams": ["ml-eng", "automations-review"],
       "reviewers": ["cady-plenful"],
       "exclude_drafts": true
+    },
+    {
+      "repo": "plenful/plenful",
+      "label": "PDM",
+      "title_contains": "PDM",
+      "exclude_drafts": true
     }
   ]
 }
