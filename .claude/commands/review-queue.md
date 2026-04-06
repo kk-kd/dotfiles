@@ -55,11 +55,29 @@ Projects can override by placing their own `.claude/review-queue.json` with the 
    - [#789 "PDM: some feature"](url) (author, 2d ago) — title match
    ```
 
-6. If no PRs match: **No PRs to review right now.**
-
-7. On macOS, send a notification:
+6. **My PRs needing attention**: For each configured repo, fetch my open PRs:
    ```
-   terminal-notifier -title "Review Queue" -message "N PRs waiting for review"
+   gh api "repos/{owner}/{repo}/pulls?state=open&per_page=100" --jq '[.[] | select(.draft == false and .user.login == "{my_username}")]'
+   ```
+   For each of my PRs, fetch reviews:
+   ```
+   gh api "repos/{owner}/{repo}/pulls/{number}/reviews" --jq '[.[] | select(.user.login != "{my_username}")]'
+   ```
+   A PR needs attention if it has any review with `state` of `CHANGES_REQUESTED` or `COMMENTED` (and no subsequent `APPROVED` from the same reviewer). Show these in a separate section:
+
+   ```
+   ## My PRs Needing Attention (N)
+
+   ### org/repo
+   - [#101 "My PR title"](url) (2d ago) — 🔴 changes requested by reviewer1
+   - [#102 "Another PR"](url) (5d ago) — 💬 commented by reviewer2
+   ```
+
+7. If no PRs match either section: **No PRs to review right now.**
+
+8. On macOS, send a notification:
+   ```
+   terminal-notifier -title "Review Queue" -message "N PRs waiting for review, M of mine need attention"
    ```
 
 ## Important
