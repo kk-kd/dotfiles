@@ -33,8 +33,10 @@ Projects can override by placing their own `.claude/review-queue.json` with the 
 
 3. Filter PRs based on the repo config:
    - If `teams` is set: match PRs where any configured team appears in `.requested_teams[].slug`.
+   - If `reviewers` is set: match PRs where any configured reviewer appears in `.requested_reviewers[].login`.
    - If `title_contains` is set: match PRs where the title contains the given string (case-insensitive).
-   - Both filters can coexist on different repo entries (even for the same repo). Deduplicate PRs by number if a PR matches multiple entries for the same repo.
+   - All filters are OR'd within a single repo entry (a PR matching any filter is included).
+   - Filters can coexist on different repo entries (even for the same repo). Deduplicate PRs by number across all entries.
 
 4. For each matching PR, fetch reviews to detect re-review:
    ```
@@ -49,6 +51,7 @@ Projects can override by placing their own `.claude/review-queue.json` with the 
 
    ### org/repo
    - [#123 "PR title"](url) (author, 3d ago) — team-slug requested
+   - [#234 "PR title"](url) (author, 2d ago) — reviewer requested
    - [#456 "PR title"](url) (author, 1d ago) — ⚠️ RE-REVIEW — team-slug requested
 
    ### org/repo (PDM)
