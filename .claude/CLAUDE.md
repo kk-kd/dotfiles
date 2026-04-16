@@ -14,7 +14,7 @@
 - Use `pytest` for all testing. Prefer fixtures and parametrize over repetitive test functions.
 - Format with `ruff` (Black-compatible). Line length 88.
 - Google-style docstrings on public functions and classes.
-- Prefer f-strings over `.format()` or `%`.
+- **Always use f-strings** — never `.format()`, `%`, or `%s`-style logging. This includes `logger.error(f"...: {exc}")`, not `logger.error("...%s", exc)`.
 - Prefer `pathlib.Path` over `os.path`.
 - Use `loguru` or stdlib `logging` — never bare `print()` for diagnostics.
 
@@ -26,6 +26,7 @@
 - Handle errors explicitly. No bare `except:`.
 - Prefer early returns to reduce nesting.
 - **Don't make formatting-only changes** (reordering imports, rewrapping lines, adjusting whitespace) unless the linter flags them. Unnecessary formatting diffs make code review harder.
+- **Never run `ruff format` on files where you only added a few lines.** Only format files you created from scratch. Running the formatter on existing files creates massive style-only diffs that obscure the real changes.
 
 ## Git & Workflow
 
