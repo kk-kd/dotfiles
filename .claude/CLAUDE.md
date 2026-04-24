@@ -112,8 +112,7 @@ When a task benefits from parallel work (e.g., multi-module features, research f
 
 ### Worktrees
 
-- Subagents using `isolation: "worktree"` **must clean up their worktree when done**. After the branch is pushed, run `git worktree remove <worktree-path>`.
-- When committing in worktrees, symlink `node_modules` from the main repo so pre-commit hooks pass: `ln -s <main>/client/node_modules <worktree>/client/node_modules`.
+- **Never spawn subagents with `isolation: "worktree"`.** Worktrees do not work reliably in this environment (venvs/tools disappear, pre-commit hooks fail, leftover worktrees accumulate). Subagents should work in the main repo or on a branch instead.
 
 ### Tracking & interjections
 
@@ -130,5 +129,5 @@ When a task benefits from parallel work (e.g., multi-module features, research f
 3. Assign tasks explicitly — do not rely on self-claiming.
 4. For complex tasks, require plan approval and review plans before greenlighting.
 5. As teammates finish, review their work and request fixes if needed.
-6. After all tasks pass review, synthesize results and clean up worktrees/branches.
+6. After all tasks pass review, synthesize results and clean up branches.
 7. Wait for all teammates to finish before proceeding — do not start implementing tasks yourself.
