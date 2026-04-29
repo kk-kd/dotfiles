@@ -2,15 +2,20 @@ Respond to code review comments on the current PR.
 
 Steps:
 1. Run `gh pr view --json reviews,comments` to fetch review feedback.
-2. For each comment or requested change:
+2. Run `gh pr checks` to fetch CI status. For each failing check:
+   - Fetch the failed job log via `gh api repos/OWNER/REPO/actions/jobs/JOB_ID/logs` and grep for `error|FAIL|assert` (skip warnings, codecov, deprecation notices).
+   - Classify: **code failure** (test/type/lint/format error, real assertion) vs **infra flake** (network 5xx, runner timeout, image pull failure, codecov upload error).
+   - For code failures, fix directly alongside review feedback. Check whether a later commit on the branch already fixed it before doing anything.
+   - For infra flakes, run `gh run rerun RUN_ID --failed` and note it in the summary.
+3. For each comment or requested change:
    - Read the reviewer's feedback.
    - If the feedback is valid, make the fix directly — no discussion needed.
    - If you disagree, draft a concise reply explaining why (1-2 sentences).
-3. After making all fixes:
+4. After making all fixes:
    - Run linters/tests to confirm nothing broke.
    - Stage and commit with `fix: address review feedback` (or more specific if warranted).
    - Push the changes.
-4. Resolve addressed review threads:
+5. Resolve addressed review threads:
    - List the comment threads you fixed or replied to.
    - Ask the user for permission before resolving any threads.
    - If approved, resolve them using the GraphQL API:
