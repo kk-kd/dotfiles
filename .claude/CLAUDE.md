@@ -28,6 +28,10 @@
 - **Don't make formatting-only changes** (reordering imports, rewrapping lines, adjusting whitespace) unless the linter flags them. Unnecessary formatting diffs make code review harder.
 - **Never run `ruff format` on files where you only added a few lines.** Only format files you created from scratch. Running the formatter on existing files creates massive style-only diffs that obscure the real changes.
 
+## Comments
+
+- **Comments describe the current state of the code, not its history.** Never write "Previously this X, now Y" or "Used to silently swallow, now propagates" or "instead of X behavior" — that framing belongs in PR descriptions and commit messages, not source. Historical context rots, confuses readers who lack the prior version, and turns code into a changelog. Just describe what the code does now and why.
+
 ## Git & Workflow
 
 - **Conventional commits**: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `ci:`.
