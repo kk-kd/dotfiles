@@ -1,3 +1,8 @@
+---
+name: retro
+description: Analyze the current conversation and extract actionable improvements to instructions, memories, and settings. Use when the user asks for a retro, post-mortem of the session, or "what should I update in my config based on this conversation".
+---
+
 Analyze this conversation and extract actionable improvements to instructions, memories, and settings.
 
 ---
@@ -29,7 +34,7 @@ Classify each finding by **scope** and **target**:
 | **Instruction** | `~/.claude/CLAUDE.md` | `.claude/CLAUDE.md` (cwd) |
 | **Memory** | `~/.claude/projects/.../memory/` | — |
 | **Setting** | `~/.claude/settings.json` | `.claude/settings.json` (cwd) |
-| **Skill/Command** | `~/.claude/commands/` | `.claude/commands/` (cwd) |
+| **Skill** | `~/.claude/skills/` | `.claude/skills/` (cwd) |
 
 For each finding, note:
 - What happened (brief)
@@ -70,8 +75,8 @@ For each approved finding, apply to the correct location based on scope:
 - **Memory**: Write a memory file following the memory system format (frontmatter with name, description, type + content). Update MEMORY.md index.
 - **Global setting**: Edit `~/.claude/settings.json`. Commit and push in the dotfiles repo.
 - **Repo-specific setting**: Edit `.claude/settings.json` in the current working directory.
-- **Global command**: Create/edit in `~/.claude/commands/`. Commit and push in the dotfiles repo.
-- **Repo-specific command**: Create/edit in `.claude/commands/` in the current working directory.
+- **Global skill**: Create/edit in `~/.claude/skills/`. Commit and push in the dotfiles repo.
+- **Repo-specific skill**: Create/edit in `.claude/skills/` in the current working directory.
 
 After applying, print a summary of what was changed and where.
 

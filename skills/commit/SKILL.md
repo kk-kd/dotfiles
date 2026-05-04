@@ -1,3 +1,8 @@
+---
+name: commit
+description: Create a git commit for the work just done. Use when the user asks to commit, says "commit this", or finishes a logical chunk of work and wants it recorded. Stages only files related to the current task — never `git add -A`.
+---
+
 Create a commit for the work you just did.
 
 **Critical: Only commit files relevant to your task.** The user may be working on other things in parallel. Never blindly `git add -A`.

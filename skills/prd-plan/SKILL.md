@@ -1,3 +1,8 @@
+---
+name: prd-plan
+description: Generate a prototype implementation plan from a PRD or requirements description, using two parallel planning agents with different biases. Use when the user has a PRD, Jira ticket, or requirements doc and wants a planned approach before building.
+---
+
 Generate a prototype plan from a PRD or requirements description using multiple perspectives.
 
 ## Arguments

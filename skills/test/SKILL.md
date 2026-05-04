@@ -1,3 +1,8 @@
+---
+name: test
+description: Generate or fix pytest tests for the current file or selected code. Use when the user asks to write tests, add test coverage, or fix failing tests in a Python project.
+---
+
 Generate or fix tests for the code I've selected or the current file.
 
 Rules:

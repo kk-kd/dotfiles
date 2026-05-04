@@ -1,3 +1,8 @@
+---
+name: sec-a
+description: Perform a security audit on an agent skill. Use when the user asks to audit, review, or security-check a skill in `~/.claude/skills/` or any skill directory. Argument is the skill name or full path to the skill directory.
+---
+
 Perform a security audit on the agent skill at: $ARGUMENTS
 
 Resolve the path: if it's a skill name, look under `skills/<name>/`. If it's a full path, use it directly. The skill directory must contain a SKILL.md file — if it doesn't, stop and tell the user this isn't a valid skill.

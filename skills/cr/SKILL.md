@@ -1,3 +1,8 @@
+---
+name: cr
+description: Review a GitHub PR and post findings as pending inline comments. Use when the user asks to code-review a PR, leave inline comments on a PR, or critique a diff. Accepts a PR number or branch name as argument.
+---
+
 Review a PR and post findings as **pending inline comments** on GitHub.
 
 ARGUMENTS: branch name OR PR number

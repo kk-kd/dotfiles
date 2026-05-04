@@ -1,3 +1,8 @@
+---
+name: pr
+description: Create a GitHub pull request for the current branch. Use when the user asks to open/create a PR, file a pull request, or push the branch up for review.
+---
+
 Create a pull request for the current branch.
 
 Steps:

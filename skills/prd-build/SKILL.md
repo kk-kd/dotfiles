@@ -1,3 +1,8 @@
+---
+name: prd-build
+description: Build an MVP prototype from an approved plan (typically from `/prd-plan`). Use when the user has an approved plan and wants to implement it via parallel subagents.
+---
+
 Build an MVP prototype from an approved plan (typically from `/prd-plan`).
 
 ## Arguments
@@ -21,12 +26,14 @@ If the project is too small to split meaningfully, use 1 subagent.
 
 ### 3. Spawn implementation agents
 
-Launch subagents with `mode: "auto"` and `isolation: "worktree"`. Each agent prompt must include:
+Launch subagents with `mode: "auto"`. Each agent prompt must include:
 - The full plan for context
 - Their specific assignment (which files, what to build)
 - Interfaces they need to match (shared types, API contracts, function signatures)
 - Instruction to ask the lead (you) if anything is unclear — do NOT guess
 - Reminder: this is an MVP — working > perfect. Skip tests unless the plan specifies them.
+
+Note: do NOT use `isolation: "worktree"` per global rules — worktrees are unreliable in this environment.
 
 ### 4. Gather and integrate
 

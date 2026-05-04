@@ -1,3 +1,8 @@
+---
+name: review-queue
+description: Fetch open GitHub PRs the user needs to review and present a summary with links. Use when the user asks "what PRs do I need to review", "show my review queue", or wants a roundup of pending reviews.
+---
+
 Fetch open PRs I need to review and present a summary with links.
 
 ## Configuration
