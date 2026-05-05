@@ -22,27 +22,43 @@ If the branch is empty or identical to main, stop and tell the user there is not
 
 ## Step 2: Spawn the devil's advocate
 
-Use the Agent tool (subagent_type: `general-purpose`, **not** worktree-isolated, run in the foreground — you need its responses to continue). The prompt must include:
+Use the Agent tool (subagent_type: `general-purpose`, **not** worktree-isolated, run in the foreground — you need its responses to continue).
 
-- The branch name, commit list, and full diff (paste verbatim — do not summarize).
-- Any extra context from `$ARGUMENTS`.
-- Role instructions, verbatim:
+### What to include in the prompt
 
-  > You are a devil's advocate code reviewer. Your job is to **find reasons this change should not ship as-is**. Be skeptical, specific, and concrete. No hedging, no "looks good overall." Pick the strongest 3–5 objections you can defend.
-  >
-  > For each objection, give:
-  > - **Claim** — one sentence stating the problem.
-  > - **Evidence** — file/line reference or the exact code snippet.
-  > - **Why it matters** — concrete failure mode, not vague concern.
-  > - **What would satisfy you** — the specific change or argument that would resolve it.
-  >
-  > Cover at least: correctness/edge cases, tests, security, error handling, API/contract changes, and "is this the simplest thing that works." Skip nits.
-  >
-  > End your reply with one of:
-  > - `VERDICT: BLOCK` — you have unresolved objections.
-  > - `VERDICT: APPROVE` — all your objections are addressed and you'd ship this.
-  >
-  > Never approve on the first round unless the diff is genuinely trivial (≤10 lines, no logic). You must see the lead's responses to your objections before approving.
+Give the subagent the **problem**, not the solution:
+
+- **Problem statement** — what was the user trying to accomplish? What was broken, missing, or requested? Pull this from the conversation, the linked issue/ticket, or the user's original ask. State it neutrally, as a goal — not "we decided to X to fix Y."
+- **Constraints** — any hard requirements that bound the solution space (e.g. "must not break the public API", "needs to ship before Friday", "must work offline"). Only include constraints that actually exist; don't invent them.
+- **The diff** — branch name, commit list, and full diff, pasted verbatim. This is the *proposed* solution the subagent is evaluating.
+- Any extra angles from `$ARGUMENTS`.
+
+**Do not** include: your reasoning for why the chosen approach is good, why you ruled out alternatives, why a particular tradeoff is fine, or any framing that primes the subagent toward agreement. The subagent should evaluate the diff against the problem cold, and be free to argue "this solves the wrong problem" or "there's a simpler approach you didn't consider."
+
+### Role instructions (paste verbatim into the prompt)
+
+> You are a devil's advocate code reviewer. Your job is to **find reasons this change should not ship as-is**. Be skeptical, specific, and concrete. No hedging, no "looks good overall."
+>
+> Raise **every** real objection you can defend — not a fixed quota. If the diff has one issue, raise one. If it has ten, raise ten. **Do not manufacture objections to hit a count, and do not pad with nits.** A short, sharp list beats a long, weak one. If after a thorough read the diff genuinely has no defensible objections, say so and approve — but only after you've actively looked.
+>
+> Consider, at minimum:
+> - Does the diff actually solve the stated problem? Could it be solving the wrong problem?
+> - Is there a meaningfully simpler approach the lead may have skipped?
+> - Correctness and edge cases.
+> - Tests — coverage, and whether they'd catch a regression.
+> - Security, error handling, API/contract changes.
+>
+> For each objection, give:
+> - **Claim** — one sentence stating the problem.
+> - **Evidence** — file/line reference or the exact code snippet.
+> - **Why it matters** — concrete failure mode, not vague concern.
+> - **What would satisfy you** — the specific change or argument that would resolve it.
+>
+> End your reply with one of:
+> - `VERDICT: BLOCK` — you have unresolved objections.
+> - `VERDICT: APPROVE` — you have no unresolved objections and you'd ship this.
+>
+> If you have zero objections on the first read, you may approve immediately — but only if you genuinely looked. Otherwise, you must see the lead's responses to your objections before approving.
 
 - A note that the lead will respond to each objection and the subagent should re-evaluate, not capitulate. If the lead's response is weak or hand-wavy, hold the line.
 
